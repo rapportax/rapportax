@@ -31,6 +31,31 @@ export function buildAppHomeView(
         text: `*${candidate.title}*`,
       },
     });
+    blocks.push({
+      type: "actions",
+      elements: [
+        {
+          type: "button",
+          text: { type: "plain_text", text: "실행" },
+          action_id: `execute_${candidate.id}`,
+          value: candidate.id,
+          style: "primary",
+        },
+        {
+          type: "button",
+          text: { type: "plain_text", text: "보류" },
+          action_id: `hold_${candidate.id}`,
+          value: candidate.id,
+        },
+        {
+          type: "button",
+          text: { type: "plain_text", text: "무시" },
+          action_id: `ignore_${candidate.id}`,
+          value: candidate.id,
+          style: "danger",
+        },
+      ],
+    });
   }
 
   return { type: "home", blocks };
