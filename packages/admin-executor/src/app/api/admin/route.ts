@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminApiClient } from "../../../admin-api/client";
 import { verifyIdPassword } from "../../../auth/idPassword";
 import { createAuditLogger } from "../../../logging/audit";
-import { handleSlackCommand } from "../../../slack/handlers";
+import { handleAdminCommand } from "../../../command/handlers";
 import type { Actor } from "../../../index";
 import { verifyAdminToken } from "../../../auth/adminToken";
 
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
 
   const auditLogger = createAuditLogger();
 
-  const result = await handleSlackCommand({
+  const result = await handleAdminCommand({
     rawText: payload.rawText,
     actor: payload.actor,
     authSessionId: `bearer_${Date.now()}`,

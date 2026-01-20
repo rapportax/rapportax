@@ -1,4 +1,4 @@
-import type { AdminExecRequest, TodoCandidate } from "../types";
+import type { TodoCandidate } from "../types";
 import { buildAppHomeView } from "./app-home";
 
 export interface SlackPublisherConfig {
@@ -9,10 +9,8 @@ export async function publishAppHome(
   config: SlackPublisherConfig,
   userId: string,
   candidates: TodoCandidate[],
-  pendingRequests: AdminExecRequest[] = [],
-  adminLoggedIn = false,
 ): Promise<void> {
-  const view = buildAppHomeView(candidates, pendingRequests, adminLoggedIn);
+  const view = buildAppHomeView(candidates);
   const response = await fetch("https://slack.com/api/views.publish", {
     method: "POST",
     headers: {

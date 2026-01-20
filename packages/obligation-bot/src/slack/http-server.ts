@@ -2,6 +2,7 @@ import express from "express";
 import type { ObligationService } from "../service";
 import { handleSlackActionRequest, handleSlackEventRequest } from "./server";
 import { publishAppHome } from "./publish";
+import { WorkflowVisualizationService, createWorkflowVizRouter } from "../workflow-viz";
 
 export interface SlackHttpServerConfig {
   signingSecret: string;
@@ -9,12 +10,24 @@ export interface SlackHttpServerConfig {
   port: number;
 }
 
-export function createSlackServer(config: SlackHttpServerConfig, service: ObligationService) {
+export interface CreateSlackServerOptions {
+  config: SlackHttpServerConfig;
+  service: ObligationService;
+  workflowVizService?: WorkflowVisualizationService;
+}
+
+export function createSlackServer(config: SlackHttpServerConfig, service: ObligationService, workflowVizService?: WorkflowVisualizationService) {
   const app = express();
 
   app.get("/health", (_req, res) => {
     res.status(200).send("ok");
   });
+
+  // Add workflow visualization HTTP API if service is provided
+  if (workflowVizService) {
+    app.use(createWorkflowVizRouter(workflowVizService));
+    console.log("[http-server] Workflow visualization endpoints registered");
+  }
 
   app.post(
     "/slack/events",
@@ -27,8 +40,7 @@ export function createSlackServer(config: SlackHttpServerConfig, service: Obliga
         const payload = JSON.parse(rawBody) as { event?: { type?: string; user?: string } };
         if (payload.event?.type === "app_home_opened" && payload.event.user) {
           const candidates = await service.listCandidates();
-          const pendingRequests = await service.listPendingAdminExecRequests();
-          await publishAppHome({ botToken: config.botToken }, payload.event.user, candidates, pendingRequests);
+          await publishAppHome({ botToken: config.botToken }, payload.event.user, candidates);
         }
       } catch {
         // ignore non-JSON
@@ -51,8 +63,8 @@ export function createSlackServer(config: SlackHttpServerConfig, service: Obliga
   return app;
 }
 
-export function runSlackServer(config: SlackHttpServerConfig, service: ObligationService) {
-  const app = createSlackServer(config, service);
+export function runSlackServer(config: SlackHttpServerConfig, service: ObligationService, workflowVizService?: WorkflowVisualizationService) {
+  const app = createSlackServer(config, service, workflowVizService);
   app.listen(config.port, () => {
     console.log(`Slack server listening on :${config.port}`);
   });

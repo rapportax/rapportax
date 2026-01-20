@@ -1,6 +1,6 @@
 import { Agent, run } from "@openai/agents";
-import type { ContextObject } from "../types";
-import type { AdminActionType } from "../types";
+import type { ContextObject } from "./types";
+import type { AdminActionType } from "./types";
 
 export interface OpenAIConfig {
   model: string;

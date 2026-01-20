@@ -65,8 +65,7 @@ export async function handleSlackActionRequest(
   }
 
   const candidates = await service.listCandidates();
-  const pendingRequests = await service.listPendingAdminExecRequests();
-  await publishAppHome({ botToken: ctx.botToken }, payload.user.id, candidates, pendingRequests);
+  await publishAppHome({ botToken: ctx.botToken }, payload.user.id, candidates);
 
   return { status: 200, body: "ok" };
 }

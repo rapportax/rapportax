@@ -1,4 +1,4 @@
-import type { AdminActionType } from "../types";
+import type { AdminActionType } from "./types";
 
 export interface ToolDefinition {
   actionType: Exclude<AdminActionType, "none">;

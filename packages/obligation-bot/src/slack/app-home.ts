@@ -1,4 +1,4 @@
-import type { AdminExecRequest, TodoCandidate } from "../types";
+import type { TodoCandidate } from "../types";
 
 export interface SlackViewPayload {
   type: "home";
@@ -7,31 +7,11 @@ export interface SlackViewPayload {
 
 export function buildAppHomeView(
   candidates: TodoCandidate[],
-  pendingRequests: AdminExecRequest[] = [],
-  adminLoggedIn = false,
 ): SlackViewPayload {
   const blocks: Array<Record<string, unknown>> = [
     {
       type: "header",
       text: { type: "plain_text", text: "Obligation Candidates" },
-    },
-    {
-      type: "section",
-      text: {
-        type: "mrkdwn",
-        text: adminLoggedIn ? "Admin Login: ✅" : "Admin Login: ❌ (required for Admin Execute)",
-      },
-    },
-    {
-      type: "actions",
-      elements: [
-        {
-          type: "button",
-          text: { type: "plain_text", text: adminLoggedIn ? "Re-Login" : "Admin Login" },
-          action_id: "admin_login",
-          value: "admin_login",
-        },
-      ],
     },
   ];
 
@@ -41,13 +21,6 @@ export function buildAppHomeView(
       text: { type: "mrkdwn", text: "현재 제안된 후보가 없습니다." },
     });
     return { type: "home", blocks };
-  }
-
-  const pendingByCandidate = new Map<string, AdminExecRequest[]>();
-  for (const request of pendingRequests) {
-    const list = pendingByCandidate.get(request.candidateId) ?? [];
-    list.push(request);
-    pendingByCandidate.set(request.candidateId, list);
   }
 
   for (const candidate of candidates) {
@@ -80,44 +53,8 @@ export function buildAppHomeView(
           action_id: `ignore_${candidate.id}`,
           value: candidate.id,
         },
-        {
-          type: "button",
-          text: { type: "plain_text", text: "Admin Execute" },
-          action_id: `execute_admin_${candidate.id}`,
-          value: candidate.id,
-        },
       ],
     });
-
-    const pending = pendingByCandidate.get(candidate.id) ?? [];
-    for (const request of pending) {
-      blocks.push({
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: `*Admin 실행 승인 대기* (${request.actionType})\n${request.rationale ?? ""}`,
-        },
-      });
-      blocks.push({
-        type: "actions",
-        elements: [
-          {
-            type: "button",
-            text: { type: "plain_text", text: "Approve" },
-            action_id: `approve_admin_${request.id}`,
-            value: request.id,
-            style: "primary",
-          },
-          {
-            type: "button",
-            text: { type: "plain_text", text: "Reject" },
-            action_id: `reject_admin_${request.id}`,
-            value: request.id,
-            style: "danger",
-          },
-        ],
-      });
-    }
   }
 
   return { type: "home", blocks };

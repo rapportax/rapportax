@@ -1,16 +1,9 @@
 import { loadEnv } from "./env";
 import { NoopContextScanner, NoopDecisionAgent, NoopDoneAssessor, NoopRiskAgent } from "../agents/noop";
 import { OpenAIContextScanner, OpenAIDecisionAgent, OpenAIDoneAssessor, OpenAIRiskAgent } from "../agents/openai";
-import {
-  PostgresAdminExecRequestRepository,
-  PostgresAdminTokenRepository,
-  PostgresCandidateRepository,
-  PostgresClient,
-  PostgresDecisionLogRepository,
-} from "../storage/postgres";
+import { PostgresCandidateRepository, PostgresClient, PostgresDecisionLogRepository } from "../storage/postgres";
 import { ObligationService } from "../service";
 import { runSlackServer } from "./http-server";
-import { AdminExecService } from "../admin-exec/service";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -29,25 +22,10 @@ export function startSlackApp(): void {
   const openaiApiKey = process.env.OPENAI_API_KEY;
   const openaiModel = process.env.OPENAI_MODEL ?? "gpt-5.2";
   const openaiBaseUrl = process.env.OPENAI_BASE_URL;
-  const adminApiBaseUrl = requireEnv("ADMIN_API_BASE_URL");
 
   const client = new PostgresClient({ connectionString: databaseUrl });
   const candidateRepository = new PostgresCandidateRepository(client);
   const decisionLogRepository = new PostgresDecisionLogRepository(client);
-  const adminExecRequestRepository = new PostgresAdminExecRequestRepository(client);
-  const adminTokenRepository = new PostgresAdminTokenRepository(client);
-
-  const adminExecService =
-    openaiApiKey
-      ? new AdminExecService(
-          {
-            adminApiBaseUrl,
-            openaiModel,
-            openaiBaseUrl,
-          },
-          { requestRepository: adminExecRequestRepository, decisionLogRepository },
-        )
-      : undefined;
 
   const service = new ObligationService({
     contextScanner: openaiApiKey
@@ -64,9 +42,6 @@ export function startSlackApp(): void {
       : new NoopRiskAgent(),
     candidateRepository,
     decisionLogRepository,
-    adminExecRequestRepository,
-    adminExecService,
-    adminTokenRepository,
   });
 
   runSlackServer(

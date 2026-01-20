@@ -34,15 +34,10 @@ Slack에서 개인 인증을 거쳐 어드민 API를 직접 호출할 수 있게
 5) 결과 및 후속 액션 안내
 6) 불변 로그 기록
 
-## Slack 인터페이스 제안
-### 명령 예시
-- `/admin-exec pro-plan grant --userId=...`
-- `/admin-exec org-tier fix --orgId=... --tier=... --credit=...`
-
-### 응답 형식
-- 실행 요약: 누가/무엇을/왜/어떤 API를 호출했는지
-- 결과 요약: 성공/실패/부분 성공
-- 로그 링크(또는 로그 ID)
+## 인터페이스 레이어 분리
+- Slack 연동은 별도 인터페이스 레이어(Obligation Bot 등)에서 처리
+- Admin Executor는 Slack과 직접 통신하지 않음
+- Admin Executor는 명령 파싱/검증/실행만 담당
 
 ## 인증/승인 정책
 - 개인 인증: DB에 등록된 ID/PW로 어드민 토큰 발급 후 해당 토큰으로 API 호출
@@ -106,12 +101,21 @@ packages/admin-executor/
           orgs/[orgId]/tier/update/route.ts
           orgs/[orgId]/credit/update/route.ts
           route.ts
-    slack/
-      commands.ts
-      handlers.ts
+    ai-exec/
+      index.ts
+      types.ts
+      planner.ts
+      service.ts
+      guard.ts
+      registry.ts
+      endpoints.ts
+      api.ts
     auth/
       idPassword.ts
       adminToken.ts
+    command/
+      commands.ts
+      handlers.ts
     admin-api/
       client.ts
       endpoints.ts
@@ -120,6 +124,16 @@ packages/admin-executor/
     db/
       pool.ts
 ```
+
+## AI 실행 레이어 분리
+- AI 기반 실행 의도 추출/계획 수립 로직은 `src/ai-exec` 디렉터리에 격리
+- 향후 모델/정책 교체 시 이 레이어만 교체하도록 설계
+- AI 실행 호출은 `https` 기반 API로만 통신 (직접 import 금지)
+
+## AI Exec HTTPS 엔드포인트
+- `POST /api/ai-exec/requests` (요청 생성)
+- `POST /api/ai-exec/requests/{requestId}/approve` (승인 + 실행)
+- `POST /api/ai-exec/requests/{requestId}/reject` (거절)
 
 ## 의존성/환경
 - Node.js + TypeScript
