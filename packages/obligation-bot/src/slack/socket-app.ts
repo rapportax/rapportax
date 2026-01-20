@@ -6,9 +6,9 @@ import { createSlackSocketAppContext } from "../di";
 import { startApiServer } from "../api/server";
 
 export async function startSlackSocketApp(): Promise<void> {
-  const { service, signingSecret, botToken, appToken, adminApiBaseUrl } = createSlackSocketAppContext();
+  const { service, signingSecret, botToken, appToken } = createSlackSocketAppContext();
 
-  void startApiServer(service, adminApiBaseUrl);
+  void startApiServer(service);
 
   const app = new App({
     token: botToken,

@@ -1,9 +1,9 @@
 import express from "express";
-import { issueAdminToken } from "../admin-exec/api";
-import { buildAppHomeView } from "../slack/app-home";
 import type { ObligationService } from "../service";
+import type { SourceType } from "../types";
 
 const API_PORT = Number(process.env.API_PORT ?? "4040");
+const VALID_SOURCES: SourceType[] = ["slack", "webhook", "system"];
 
 const requireParam = (value: unknown, name: string): string => {
   if (typeof value !== "string" || value.trim().length === 0) {
@@ -12,7 +12,44 @@ const requireParam = (value: unknown, name: string): string => {
   return value;
 };
 
-export const startApiServer = async (service: ObligationService, adminApiBaseUrl: string): Promise<void> => {
+const optionalString = (value: unknown): string | undefined =>
+  typeof value === "string" && value.trim().length > 0 ? value : undefined;
+
+const parseSource = (value: unknown): SourceType => {
+  if (typeof value !== "string") {
+    return "webhook";
+  }
+  const trimmed = value.trim();
+  return VALID_SOURCES.includes(trimmed as SourceType) ? (trimmed as SourceType) : "webhook";
+};
+
+const parseRiskScore = (value: unknown): number | undefined => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+};
+
+const formatError = (error: unknown): { message: string; details?: string } => {
+  if (error instanceof Error) {
+    const details = error.stack && error.stack !== error.message ? error.stack : undefined;
+    return { message: error.message || "Unknown error", details };
+  }
+  if (typeof error === "string") {
+    return { message: error || "Unknown error" };
+  }
+  try {
+    return { message: JSON.stringify(error) };
+  } catch {
+    return { message: "Unknown error" };
+  }
+};
+
+export const startApiServer = async (service: ObligationService): Promise<void> => {
   const app = express();
   app.use(express.json());
 
@@ -20,46 +57,41 @@ export const startApiServer = async (service: ObligationService, adminApiBaseUrl
     res.status(200).send("ok");
   });
 
-  app.get("/api/obligations/home", async (req, res) => {
+  app.post("/api/obligations", async (req, res) => {
     try {
-      const userId = requireParam(req.query.userId, "userId");
-      const candidates = await service.listCandidates();
-      const pendingRequests = await service.listPendingAdminExecRequests();
-      const adminLoggedIn = await service.isAdminLoggedIn(userId);
-      const view = buildAppHomeView(candidates, pendingRequests, adminLoggedIn);
-      res.json(view);
+      const title = requireParam(req.body?.title, "title");
+      const candidate = await service.createObligation({
+        title,
+        source: parseSource(req.body?.source),
+        inferredReason: optionalString(req.body?.inferredReason),
+        suggestedOwner: optionalString(req.body?.suggestedOwner),
+        riskScore: parseRiskScore(req.body?.riskScore),
+      });
+      res.status(201).json({ ok: true, candidate });
     } catch (error) {
-      res.status(400).json({ ok: false, error: error instanceof Error ? error.message : String(error) });
+      const payload = formatError(error);
+      console.error("[api] create obligation failed", payload);
+      res.status(400).json({ ok: false, error: payload.message });
     }
   });
 
-  app.post("/api/obligations/action", async (req, res) => {
+  app.post("/api/obligations/:id/execute", async (req, res) => {
     try {
-      const userId = requireParam(req.body?.userId, "userId");
-      const actionId = requireParam(req.body?.actionId, "actionId");
-      const value = requireParam(req.body?.value, "value");
-      await service.handleSlackAction(actionId, value, userId);
-      const candidates = await service.listCandidates();
-      const pendingRequests = await service.listPendingAdminExecRequests();
-      const adminLoggedIn = await service.isAdminLoggedIn(userId);
-      const view = buildAppHomeView(candidates, pendingRequests, adminLoggedIn);
-      res.json({ ok: true, view });
+      const candidateId = requireParam(req.params?.id, "id");
+      const requestedByUserId = optionalString(req.body?.requestedByUserId);
+      const result = await service.executeCandidate(candidateId, requestedByUserId);
+      res.json({ ok: result.status === "ENQUEUED", result });
     } catch (error) {
-      res.status(400).json({ ok: false, error: error instanceof Error ? error.message : String(error) });
+      const payload = formatError(error);
+      console.error("[api] execute obligation failed", payload);
+      res.status(400).json({ ok: false, error: payload.message });
     }
   });
 
-  app.post("/api/obligations/admin-login", async (req, res) => {
-    try {
-      const userId = requireParam(req.body?.userId, "userId");
-      const username = requireParam(req.body?.username, "username");
-      const password = requireParam(req.body?.password, "password");
-      const accessToken = await issueAdminToken({ baseUrl: adminApiBaseUrl, username, password });
-      await service.saveAdminToken(userId, accessToken);
-      res.json({ ok: true });
-    } catch (error) {
-      res.status(400).json({ ok: false, error: error instanceof Error ? error.message : String(error) });
-    }
+  app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    const payload = formatError(error);
+    console.error("[api] request failed", payload);
+    res.status(400).json({ ok: false, error: payload.message });
   });
 
   app.listen(API_PORT, () => {

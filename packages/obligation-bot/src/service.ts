@@ -1,4 +1,5 @@
-import type { SlackEventEnvelope, TodoCandidate } from "./types";
+import { randomUUID } from "crypto";
+import type { SlackEventEnvelope, SourceType, TodoCandidate } from "./types";
 import type {
   CandidateRepository,
   DecisionLogRepository,
@@ -10,7 +11,7 @@ import { normalizeSlackEvent } from "./normalize/slack";
 import { ObligationPipeline } from "./pipeline";
 import { parseSlackActionId } from "./slack/actions";
 import type { AdminExecService } from "./admin-exec/service";
-import type { ExecutorService } from "./executor/service";
+import type { ExecutorResult, ExecutorService } from "./executor/service";
 
 export interface ObligationServiceDeps {
   contextScanner: ContextScannerAgent;
@@ -46,6 +47,37 @@ export class ObligationService {
 
   async listCandidates(): Promise<TodoCandidate[]> {
     return this.deps.candidateRepository.listOpen();
+  }
+
+  async createObligation(input: {
+    title: string;
+    source?: SourceType;
+    inferredReason?: string;
+    riskScore?: number;
+    suggestedOwner?: string;
+  }): Promise<TodoCandidate> {
+    const candidate: TodoCandidate = {
+      id: randomUUID(),
+      title: input.title,
+      source: input.source ?? "webhook",
+      inferredReason: input.inferredReason ?? "Manually created obligation",
+      riskScore: input.riskScore ?? 0,
+      suggestedOwner: input.suggestedOwner,
+      decisionLog: [],
+    };
+
+    await this.deps.candidateRepository.create(candidate);
+    await this.deps.decisionLogRepository.append(
+      {
+        actor: "HUMAN",
+        action: "CREATE",
+        reason: "API create",
+        timestamp: new Date(),
+      },
+      candidate.id,
+    );
+
+    return candidate;
   }
 
   async listPendingAdminExecRequests(): Promise<ReturnType<AdminExecRequestRepository["listPending"]>> {
@@ -116,6 +148,13 @@ export class ObligationService {
         parsed.candidateId,
       );
     }
+  }
+
+  async executeCandidate(candidateId: string, requestedByUserId?: string): Promise<ExecutorResult> {
+    if (!this.deps.executorService) {
+      return { status: "FAILED", error: "Executor service not configured" };
+    }
+    return this.deps.executorService.executeCandidate(candidateId, requestedByUserId);
   }
 
   async handleAdminExecute(candidateId: string, token: string, requestedByUserId: string) {
