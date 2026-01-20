@@ -102,3 +102,7 @@ flowchart LR
 - 저장소: `packages/obligation-bot/src/storage/postgres.ts`
 
 자세한 설계 규칙은 `AGENTS.md`를 참고하세요.
+
+
+## live demo
+https://drive.google.com/file/d/1oobsTnRGdbkLSxOVfmFgjmSu6c_jX3mi/view?usp=sharing
