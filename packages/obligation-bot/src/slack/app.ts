@@ -3,6 +3,7 @@ import { NoopContextScanner, NoopDecisionAgent, NoopDoneAssessor, NoopRiskAgent 
 import { OpenAIContextScanner, OpenAIDecisionAgent, OpenAIDoneAssessor, OpenAIRiskAgent } from "../agents/openai";
 import {
   PostgresAdminExecRequestRepository,
+  PostgresAdminTokenRepository,
   PostgresCandidateRepository,
   PostgresClient,
   PostgresDecisionLogRepository,
@@ -28,23 +29,19 @@ export function startSlackApp(): void {
   const openaiApiKey = process.env.OPENAI_API_KEY;
   const openaiModel = process.env.OPENAI_MODEL ?? "gpt-5.2";
   const openaiBaseUrl = process.env.OPENAI_BASE_URL;
-  const adminApiBaseUrl = process.env.ADMIN_API_BASE_URL;
-  const adminApiUsername = process.env.ADMIN_API_USERNAME;
-  const adminApiPassword = process.env.ADMIN_API_PASSWORD;
+  const adminApiBaseUrl = requireEnv("ADMIN_API_BASE_URL");
 
   const client = new PostgresClient({ connectionString: databaseUrl });
   const candidateRepository = new PostgresCandidateRepository(client);
   const decisionLogRepository = new PostgresDecisionLogRepository(client);
   const adminExecRequestRepository = new PostgresAdminExecRequestRepository(client);
+  const adminTokenRepository = new PostgresAdminTokenRepository(client);
 
   const adminExecService =
-    openaiApiKey && adminApiBaseUrl && adminApiUsername && adminApiPassword
+    openaiApiKey
       ? new AdminExecService(
           {
             adminApiBaseUrl,
-            adminUsername: adminApiUsername,
-            adminPassword: adminApiPassword,
-            openaiApiKey,
             openaiModel,
             openaiBaseUrl,
           },
@@ -54,21 +51,22 @@ export function startSlackApp(): void {
 
   const service = new ObligationService({
     contextScanner: openaiApiKey
-      ? new OpenAIContextScanner({ apiKey: openaiApiKey, model: openaiModel, baseURL: openaiBaseUrl })
+      ? new OpenAIContextScanner({ model: openaiModel, baseURL: openaiBaseUrl })
       : new NoopContextScanner(),
     decisionAgent: openaiApiKey
-      ? new OpenAIDecisionAgent({ apiKey: openaiApiKey, model: openaiModel, baseURL: openaiBaseUrl })
+      ? new OpenAIDecisionAgent({ model: openaiModel, baseURL: openaiBaseUrl })
       : new NoopDecisionAgent(),
     doneAssessor: openaiApiKey
-      ? new OpenAIDoneAssessor({ apiKey: openaiApiKey, model: openaiModel, baseURL: openaiBaseUrl })
+      ? new OpenAIDoneAssessor({ model: openaiModel, baseURL: openaiBaseUrl })
       : new NoopDoneAssessor(),
     riskAgent: openaiApiKey
-      ? new OpenAIRiskAgent({ apiKey: openaiApiKey, model: openaiModel, baseURL: openaiBaseUrl })
+      ? new OpenAIRiskAgent({ model: openaiModel, baseURL: openaiBaseUrl })
       : new NoopRiskAgent(),
     candidateRepository,
     decisionLogRepository,
     adminExecRequestRepository,
     adminExecService,
+    adminTokenRepository,
   });
 
   runSlackServer(
