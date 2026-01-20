@@ -63,7 +63,7 @@ export interface DecisionOutput {
 
 export interface DecisionLog {
   actor: "HUMAN" | "AI";
-  action: "CREATE" | "HOLD" | "IGNORE";
+  action: "CREATE" | "HOLD" | "IGNORE" | "EXECUTE";
   reason: string;
   timestamp: Date;
 }

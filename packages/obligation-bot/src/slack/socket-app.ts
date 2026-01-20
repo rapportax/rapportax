@@ -1,55 +1,16 @@
-import { loadEnv } from "./env";
 import { App, LogLevel } from "@slack/bolt";
-import { NoopContextScanner, NoopDecisionAgent, NoopDoneAssessor, NoopRiskAgent } from "../agents/noop";
-import { OpenAIContextScanner, OpenAIDecisionAgent, OpenAIDoneAssessor, OpenAIRiskAgent } from "../agents/openai";
-import { PostgresCandidateRepository, PostgresClient, PostgresDecisionLogRepository } from "../storage/postgres";
-import { ObligationService } from "../service";
 import { publishAppHome } from "./publish";
+import { createSlackSocketAppContext } from "../di";
+import { startApiServer } from "../api/server";
 import { WorkflowVisualizationService, workflowVizEvents } from "../workflow-viz";
 
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`Missing required env: ${name}`);
-  }
-  return value;
-}
-
 export async function startSlackSocketApp(): Promise<void> {
-  loadEnv();
-  const signingSecret = requireEnv("SLACK_SIGNING_SECRET");
-  const botToken = requireEnv("SLACK_BOT_TOKEN");
-  const appToken = requireEnv("SLACK_APP_TOKEN");
-  const databaseUrl = requireEnv("DATABASE_URL");
-  const openaiApiKey = process.env.OPENAI_API_KEY;
-  const openaiModel = process.env.OPENAI_MODEL ?? "gpt-5.2";
-  const openaiBaseUrl = process.env.OPENAI_BASE_URL;
+  const { service, signingSecret, botToken, appToken } = createSlackSocketAppContext();
 
-  const client = new PostgresClient({ connectionString: databaseUrl });
-  const candidateRepository = new PostgresCandidateRepository(client);
-  const decisionLogRepository = new PostgresDecisionLogRepository(client);
+  void startApiServer(service);
 
-  const service = new ObligationService({
-    contextScanner: openaiApiKey
-      ? new OpenAIContextScanner({ model: openaiModel, baseURL: openaiBaseUrl })
-      : new NoopContextScanner(),
-    decisionAgent: openaiApiKey
-      ? new OpenAIDecisionAgent({ model: openaiModel, baseURL: openaiBaseUrl })
-      : new NoopDecisionAgent(),
-    doneAssessor: openaiApiKey
-      ? new OpenAIDoneAssessor({ model: openaiModel, baseURL: openaiBaseUrl })
-      : new NoopDoneAssessor(),
-    riskAgent: openaiApiKey
-      ? new OpenAIRiskAgent({ model: openaiModel, baseURL: openaiBaseUrl })
-      : new NoopRiskAgent(),
-    candidateRepository,
-    decisionLogRepository,
-  });
-
-  // Initialize workflow visualization service
   const workflowViz = new WorkflowVisualizationService({ botToken });
 
-  // Connect EventEmitter to service (for same-process communication)
   workflowVizEvents.on("session:start", (session) => {
     workflowViz.startSession(session).catch((err) => {
       console.error("[workflow-viz] Error starting session:", err);
@@ -125,7 +86,7 @@ export async function startSlackSocketApp(): Promise<void> {
     if (action && "action_id" in action && "value" in action) {
       const actionId = String(action.action_id);
       const value = String(action.value ?? "");
-      await service.handleSlackAction(actionId, value);
+      await service.handleSlackAction(actionId, value, body.user?.id);
     }
     if (body.user?.id) {
       const candidates = await service.listCandidates();

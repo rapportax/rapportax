@@ -36,7 +36,7 @@ const pickLocalTask = () => {
 };
 
 async function main(): Promise<void> {
-  const logPath = path.resolve(__dirname, "..", "monitor", "agent-log.jsonl");
+  const logPath = path.resolve(__dirname, "..", "..", "monitor", "agent-log.jsonl");
   const logger = createJsonlLogger(logPath);
 
   const selectedTask = pickLocalTask();
@@ -60,7 +60,6 @@ async function main(): Promise<void> {
     {
       repoRoot: "/Users/giyeonkim/Projects/rapportax/.repos/openai-agents-js",
       maxTurns: 50,
-      enableImplementation: true,
       logger,
     },
   );

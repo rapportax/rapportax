@@ -61,7 +61,7 @@ export async function handleSlackActionRequest(
   const payload = JSON.parse(payloadRaw) as SlackActionPayload;
   const action = payload.actions[0];
   if (action) {
-    await service.handleSlackAction(action.action_id, action.value);
+    await service.handleSlackAction(action.action_id, action.value, payload.user?.id);
   }
 
   const candidates = await service.listCandidates();

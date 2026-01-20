@@ -139,15 +139,7 @@ const truncateArray = <T>(items: T[], max = 10): T[] => {
 };
 
 export const createRepoTools = (basePath: string, agentName: string) => {
-  const toolLogPath = path.resolve(
-    basePath,
-    "..",
-    "..",
-    "packages",
-    "worker",
-    "monitor",
-    "agent-log.jsonl",
-  );
+  const toolLogPath = path.resolve(__dirname, "..", "..", "monitor", "agent-log.jsonl");
   const logToolEvent = (name: string, payload: Record<string, unknown>) => {
     const entry = {
       timestamp: new Date().toISOString(),

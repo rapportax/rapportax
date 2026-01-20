@@ -1,15 +1,12 @@
 import http from "http";
 import fs from "fs/promises";
 import path from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PORT = Number(process.env.MONITOR_PORT ?? 8787);
 const LOG_PATH = process.env.MONITOR_LOG_PATH ??
-  path.resolve(__dirname, "..", "..", "monitor", "agent-log.jsonl");
-const PUBLIC_DIR = path.resolve(__dirname, "..", "..", "monitor");
+  path.resolve(__dirname, "..", "..", "..", "monitor", "agent-log.jsonl");
+const PUBLIC_DIR = path.resolve(__dirname, "..", "..", "..", "monitor");
 
 const readLogEntries = async (): Promise<any[]> => {
   try {
@@ -90,11 +87,6 @@ const server = http.createServer(async (req, res) => {
 
   if (url === "/styles.css") {
     await serveStatic(res, path.join(PUBLIC_DIR, "styles.css"));
-    return;
-  }
-
-  if (url === "/app.js") {
-    await serveStatic(res, path.join(PUBLIC_DIR, "app.js"));
     return;
   }
 
