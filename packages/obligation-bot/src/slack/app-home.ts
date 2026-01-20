@@ -11,7 +11,7 @@ export function buildAppHomeView(
   const blocks: Array<Record<string, unknown>> = [
     {
       type: "header",
-      text: { type: "plain_text", text: "Obligation Candidates" },
+      text: { type: "plain_text", text: "Your TODOs" },
     },
   ];
 
@@ -28,32 +28,8 @@ export function buildAppHomeView(
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `*${candidate.title}*\nRisk: ${candidate.riskScore}`,
+        text: `*${candidate.title}*`,
       },
-      accessory: {
-        type: "button",
-        text: { type: "plain_text", text: "Execute" },
-        action_id: `execute_${candidate.id}`,
-        value: candidate.id,
-      },
-    });
-
-    blocks.push({
-      type: "actions",
-      elements: [
-        {
-          type: "button",
-          text: { type: "plain_text", text: "Hold" },
-          action_id: `hold_${candidate.id}`,
-          value: candidate.id,
-        },
-        {
-          type: "button",
-          text: { type: "plain_text", text: "Ignore" },
-          action_id: `ignore_${candidate.id}`,
-          value: candidate.id,
-        },
-      ],
     });
   }
 

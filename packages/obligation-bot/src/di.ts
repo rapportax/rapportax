@@ -1,6 +1,6 @@
 import { loadEnv } from "./slack/env";
-import { NoopContextScanner, NoopDecisionAgent, NoopDoneAssessor, NoopRiskAgent } from "./agents/noop";
-import { OpenAIContextScanner, OpenAIDecisionAgent, OpenAIDoneAssessor, OpenAIRiskAgent } from "./agents/openai";
+import { NoopContextScanner, NoopDecisionAgent, NoopDoneAssessor } from "./agents/noop";
+import { OpenAIContextScanner, OpenAIDecisionAgent, OpenAIDoneAssessor } from "./agents/openai";
 import { PostgresCandidateRepository, PostgresClient, PostgresDecisionLogRepository } from "./storage/postgres";
 import { ObligationService } from "./service";
 import { ExecutorService } from "./executor/service";
@@ -76,13 +76,6 @@ const createService = (params: {
           baseURL: params.openaiBaseUrl,
         })
       : new NoopDoneAssessor(),
-    riskAgent: params.openaiApiKey
-      ? new OpenAIRiskAgent({
-          apiKey: params.openaiApiKey,
-          model: params.openaiModel,
-          baseURL: params.openaiBaseUrl,
-        })
-      : new NoopRiskAgent(),
     candidateRepository: params.repositories.candidateRepository,
     decisionLogRepository: params.repositories.decisionLogRepository,
     executorService,
