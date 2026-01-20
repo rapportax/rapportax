@@ -24,6 +24,8 @@ type SlackBlock = {
 type SlackMessage = {
   text: string;
   blocks?: SlackBlock[];
+  username?: string;
+  icon_emoji?: string;
 };
 
 export const attachSlackOpsPublisher = (
@@ -58,6 +60,8 @@ export const attachSlackOpsPublisher = (
           channel,
           text: message.text,
           blocks: message.blocks,
+          username: message.username,
+          icon_emoji: message.icon_emoji,
           thread_ts: threadTs,
           mrkdwn: true,
         }),

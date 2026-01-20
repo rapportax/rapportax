@@ -74,6 +74,15 @@ const TOOL_AGENT_MAP: Record<string, string> = {
   ask_qa: "QA",
 };
 
+const AGENT_SLACK_NAME: Record<string, string> = {
+  Orchestrator: "Orchestrator",
+  PO: "PO",
+  Developer: "Developer",
+  DeveloperResearch: "DevResearch",
+  Implementation: "Implementation",
+  QA: "QA",
+};
+
 const formatTime = (timestamp: string): string => {
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) {
@@ -122,11 +131,17 @@ const EVENT_LABEL: Record<AgentHookEvent, string> = {
 const formatSlackEventLine = (
   event: AgentHookEvent,
   payload: AgentHookPayload,
-): { text: string; blocks?: { type: string; text?: { type: string; text: string }; elements?: Array<{ type: string; text: string }> }[] } => {
+): {
+  text: string;
+  blocks?: { type: string; text?: { type: string; text: string }; elements?: Array<{ type: string; text: string }> }[];
+  username?: string;
+  icon_emoji?: string;
+} => {
   const emoji = EVENT_EMOJI[event] ?? "🧾";
   const parts: string[] = [];
   const toolKey = payload.toolName ?? payload.tool ?? "";
   const targetAgent = TOOL_AGENT_MAP[toolKey];
+  const slackName = payload.agent ? AGENT_SLACK_NAME[payload.agent] ?? payload.agent : undefined;
   if (payload.agent) {
     parts.push(`*${payload.agent}*`);
   }
@@ -167,7 +182,34 @@ const formatSlackEventLine = (
     }
   }
   const label = EVENT_LABEL[event] ?? event;
-  const text = `${emoji} *${label}* ${parts.join(" ")}`.trim();
+  let text = `${emoji} *${label}* ${parts.join(" ")}`.trim();
+  if (event === "agent_tool_start") {
+    const toolLabel = payload.toolName ?? payload.tool ?? "도구";
+    text = `\`${toolLabel}\`를 사용해보겠습니다.`;
+  }
+  if (event === "agent_tool_call") {
+    const toolLabel = payload.toolName ?? payload.tool ?? "도구";
+    text = `\`${toolLabel}\`를 호출합니다.`;
+  }
+  if (event === "agent_tool_end") {
+    const toolLabel = payload.toolName ?? payload.tool ?? "도구";
+    text = `\`${toolLabel}\` 결과를 확인했습니다.`;
+  }
+  if (event === "agent_tool_end") {
+    const blocks = [
+      {
+        type: "context",
+        elements: [{ type: "mrkdwn", text }],
+      },
+    ];
+    if (resultBlock) {
+      blocks.push({
+        type: "section",
+        text: { type: "mrkdwn", text: resultBlock.trim() },
+      });
+    }
+    return { text, blocks, username: slackName };
+  }
   if (event === "agent_end") {
     const blocks = [
       {
@@ -187,7 +229,7 @@ const formatSlackEventLine = (
         text: { type: "mrkdwn", text: resultBlock.trim() },
       });
     }
-    return { text, blocks };
+    return { text, blocks, username: slackName };
   }
   return {
     text,
@@ -197,6 +239,7 @@ const formatSlackEventLine = (
         elements: [{ type: "mrkdwn", text }],
       },
     ],
+    username: slackName,
   };
 };
 
@@ -292,6 +335,93 @@ export const attachAgentHooks = (
     runner.off("agent_handoff", onAgentHandoff);
     runner.off("agent_tool_start", onAgentToolStart);
     runner.off("agent_tool_end", onAgentToolEnd);
+  };
+};
+
+export const attachAgentInstanceHooks = (
+  agent: Agent<any, any>,
+  eventEmitter: EventEmitter2 = agentEventEmitter,
+  requestId?: string,
+) => {
+  const emit = (event: AgentHookEvent, payload: Omit<AgentHookPayload, "requestId" | "timestamp">) => {
+    eventEmitter.emit(event, buildPayload(requestId, payload));
+  };
+
+  const onAgentStart = (
+    _context: RunContext<any>,
+    agentRef: Agent<any, any>,
+    turnInput?: unknown[],
+  ) => {
+    emit("agent_start", {
+      agent: agentRef.name,
+      turnInputCount: turnInput?.length ?? 0,
+    });
+  };
+
+  const onAgentEnd = (_context: RunContext<any>, output: string) => {
+    emit("agent_end", {
+      agent: agent.name,
+      output: truncate(output),
+    });
+  };
+
+  const onAgentHandoff = (_context: RunContext<any>, nextAgent: Agent<any, any>) => {
+    emit("agent_handoff", {
+      agent: agent.name,
+      nextAgent: nextAgent.name,
+    });
+  };
+
+  const onAgentToolStart = (
+    _context: RunContext<any>,
+    tool: Tool,
+    details: { toolCall: { id?: string; name?: string } },
+  ) => {
+    const toolCallId = details?.toolCall?.id;
+    const toolName = details?.toolCall?.name;
+    emit("agent_tool_start", {
+      agent: agent.name,
+      tool: tool.name,
+      toolCallId,
+      toolName,
+    });
+    emit("agent_tool_call", {
+      agent: agent.name,
+      tool: tool.name,
+      toolCallId,
+      toolName,
+    });
+  };
+
+  const onAgentToolEnd = (
+    _context: RunContext<any>,
+    tool: Tool,
+    result: string,
+    details: { toolCall: { id?: string; name?: string } },
+  ) => {
+    const toolCallId = details?.toolCall?.id;
+    const toolName = details?.toolCall?.name;
+    emit("agent_tool_end", {
+      agent: agent.name,
+      tool: tool.name,
+      toolCallId,
+      toolName,
+      result: truncate(result),
+    });
+  };
+
+  agent.on("agent_start", onAgentStart);
+  agent.on("agent_end", onAgentEnd);
+  agent.on("agent_handoff", onAgentHandoff);
+  agent.on("agent_tool_start", onAgentToolStart);
+  agent.on("agent_tool_end", onAgentToolEnd);
+
+  return () => {
+    agent.off("agent_start", onAgentStart);
+    agent.off("agent_end", onAgentEnd);
+    agent.off("agent_handoff", onAgentHandoff);
+    agent.off("agent_tool_start", onAgentToolStart);
+    agent.off("agent_tool_end", onAgentToolEnd);
   };
 };
 

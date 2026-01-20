@@ -14,7 +14,12 @@ import {
   OrchestratorOutputSchema,
 } from "./schemas";
 import { createRepoTools } from "./tools";
-import { agentEventEmitter, attachAgentHookLogger, attachAgentHooks } from "./monitor/agent-hooks";
+import {
+  agentEventEmitter,
+  attachAgentHookLogger,
+  attachAgentHooks,
+  attachAgentInstanceHooks,
+} from "./monitor/agent-hooks";
 
 export interface WorkflowInput {
   task: string;
@@ -163,6 +168,13 @@ export async function runMultiAgentWorkflow(
 
   const hookEmitter = options.eventEmitter ?? agentEventEmitter;
   const detachHooks = attachAgentHooks(runner, hookEmitter, requestId);
+  const detachAgentInstances = [
+    attachAgentInstanceHooks(poBase, hookEmitter, requestId),
+    attachAgentInstanceHooks(devResearchBase, hookEmitter, requestId),
+    attachAgentInstanceHooks(devBase, hookEmitter, requestId),
+    attachAgentInstanceHooks(implBase, hookEmitter, requestId),
+    attachAgentInstanceHooks(qaBase, hookEmitter, requestId),
+  ];
   const detachLogger = attachAgentHookLogger(hookEmitter, {
     requestId,
     logPath: options.eventLogPath,
@@ -173,6 +185,7 @@ export async function runMultiAgentWorkflow(
     { maxTurns },
   ).finally(() => {
     detachHooks();
+    detachAgentInstances.forEach((detach) => detach());
     detachLogger();
   });
 
