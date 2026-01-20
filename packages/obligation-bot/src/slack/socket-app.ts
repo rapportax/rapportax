@@ -2,11 +2,13 @@ import { App, LogLevel } from "@slack/bolt";
 import { publishAppHome } from "./publish";
 import { sendAdminApprovalRequest, sendAdminExecutionResult } from "./messages";
 import { buildAdminLoginModal, parseAdminLogin, ADMIN_LOGIN_VIEW_ID } from "./modals";
-import { issueAdminToken } from "../admin-exec/api";
 import { createSlackSocketAppContext } from "../di";
+import { startApiServer } from "../api/server";
 
 export async function startSlackSocketApp(): Promise<void> {
   const { service, signingSecret, botToken, appToken, adminApiBaseUrl } = createSlackSocketAppContext();
+
+  void startApiServer(service, adminApiBaseUrl);
 
   const app = new App({
     token: botToken,
