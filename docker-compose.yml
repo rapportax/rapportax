@@ -1,0 +1,19 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: rapportax-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: rapportax
+      POSTGRES_PASSWORD: rapportax
+      POSTGRES_DB: rapportax
+    ports:
+      - "5432:5432"
+    volumes:
+      - rapportax_postgres_data:/var/lib/postgresql/data
+      - ./sql/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+
+volumes:
+  rapportax_postgres_data:

@@ -1,0 +1,23 @@
+{
+  "name": "@rapportax/obligation-bot",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/slack/socket-app.ts",
+    "slack:dev": "tsx src/slack/app.ts",
+    "test": "node -e \"console.log('no tests yet')\""
+  },
+  "dependencies": {
+    "@slack/bolt": "^3.19.1",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "openai": "^4.98.0",
+    "pg": "^8.11.5"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21"
+  }
+}
