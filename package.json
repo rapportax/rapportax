@@ -1,0 +1,19 @@
+{
+  "name": "rapportax",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "pnpm -r dev",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "test": "pnpm -r test"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.30",
+    "@biomejs/biome": "^1.9.4",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
