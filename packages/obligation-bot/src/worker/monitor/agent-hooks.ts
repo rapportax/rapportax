@@ -20,6 +20,7 @@ export type AgentHookPayload = {
   tool?: string;
   toolCallId?: string;
   toolName?: string;
+  toolInput?: string;
   turnInputCount?: number;
   output?: string;
   result?: string;
@@ -174,6 +175,13 @@ const formatSlackEventLine = (
       resultBlock = `\n\`\`\`json\n${preview}\n\`\`\``;
     }
   }
+  let inputBlock = "";
+  if (payload.toolInput) {
+    const preview = formatJsonPreview(payload.toolInput, 1200);
+    if (preview) {
+      inputBlock = `\n\`\`\`json\n${preview}\n\`\`\``;
+    }
+  }
   let outputBlock = "";
   if (payload.output) {
     const preview = formatJsonPreview(payload.output, 900);
@@ -206,6 +214,21 @@ const formatSlackEventLine = (
       blocks.push({
         type: "section",
         text: { type: "mrkdwn", text: resultBlock.trim() },
+      });
+    }
+    return { text, blocks, username: slackName };
+  }
+  if (event === "agent_tool_call") {
+    const blocks = [
+      {
+        type: "context",
+        elements: [{ type: "mrkdwn", text }],
+      },
+    ];
+    if (inputBlock) {
+      blocks.push({
+        type: "section",
+        text: { type: "mrkdwn", text: inputBlock.trim() },
       });
     }
     return { text, blocks, username: slackName };
@@ -291,6 +314,7 @@ export const attachAgentHooks = (
   ) => {
     const toolCallId = details?.toolCall?.id;
     const toolName = details?.toolCall?.name;
+    const toolInput = details?.toolCall?.arguments;
     emit("agent_tool_start", {
       agent: agent.name,
       tool: tool.name,
@@ -302,6 +326,7 @@ export const attachAgentHooks = (
       tool: tool.name,
       toolCallId,
       toolName,
+      toolInput,
     });
   };
 
@@ -379,6 +404,7 @@ export const attachAgentInstanceHooks = (
   ) => {
     const toolCallId = details?.toolCall?.id;
     const toolName = details?.toolCall?.name;
+    const toolInput = details?.toolCall?.arguments;
     emit("agent_tool_start", {
       agent: agent.name,
       tool: tool.name,
@@ -390,6 +416,7 @@ export const attachAgentInstanceHooks = (
       tool: tool.name,
       toolCallId,
       toolName,
+      toolInput,
     });
   };
 

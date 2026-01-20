@@ -93,10 +93,29 @@ export const attachSlackOpsPublisher = (
       if (lines.length === 0) {
         continue;
       }
-      const chunks: string[][] = [];
-      for (let i = 0; i < lines.length; i += maxLines) {
-        chunks.push(lines.slice(i, i + maxLines));
+      const chunks: SlackMessage[][] = [];
+      let currentChunk: SlackMessage[] = [];
+      let currentKey = "";
+      const pushChunk = () => {
+        if (currentChunk.length > 0) {
+          chunks.push(currentChunk);
+          currentChunk = [];
+        }
+      };
+      for (const line of lines) {
+        const key = `${line.username ?? ""}|${line.icon_emoji ?? ""}`;
+        if (
+          currentChunk.length >= maxLines ||
+          (currentChunk.length > 0 && key !== currentKey)
+        ) {
+          pushChunk();
+        }
+        if (currentChunk.length === 0) {
+          currentKey = key;
+        }
+        currentChunk.push(line);
       }
+      pushChunk();
 
       const threadKey = requestId === "unknown" ? null : requestId;
       let threadTs = threadKey ? threadTsByRequest.get(threadKey) ?? null : null;
@@ -111,6 +130,8 @@ export const attachSlackOpsPublisher = (
       for (const chunk of chunks) {
         const textParts: string[] = [];
         const blocks: SlackBlock[] = [];
+        const username = chunk.find((item) => item.username)?.username;
+        const iconEmoji = chunk.find((item) => item.icon_emoji)?.icon_emoji;
         chunk.forEach((item) => {
           textParts.push(item.text);
           if (item.blocks && item.blocks.length > 0) {
@@ -126,6 +147,8 @@ export const attachSlackOpsPublisher = (
           {
             text: textParts.join("\n"),
             blocks: blocks.length ? blocks : undefined,
+            username,
+            icon_emoji: iconEmoji,
           },
           threadTs ?? undefined,
         );
