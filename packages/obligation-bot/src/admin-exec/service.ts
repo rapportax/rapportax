@@ -4,10 +4,11 @@ import type { AdminExecRequestRepository, DecisionLogRepository } from "../stora
 import { getOrgSummary, getUserDetail, executeAdminAction, verifyAdminToken } from "./api";
 import { resolveAdminEndpoint, type AdminEndpoint } from "./endpoints";
 import { OpenAIAdminPlanner } from "./planner";
+import { getToolDefinition } from "./registry";
+import { validatePlan } from "./guard";
 
 export interface AdminExecServiceConfig {
   adminApiBaseUrl: string;
-  openaiApiKey: string;
   openaiModel: string;
   openaiBaseUrl?: string;
 }
@@ -25,7 +26,6 @@ export class AdminExecService {
     private readonly deps: AdminExecServiceDeps,
   ) {
     this.planner = new OpenAIAdminPlanner({
-      apiKey: config.openaiApiKey,
       model: config.openaiModel,
       baseURL: config.openaiBaseUrl,
     });
@@ -81,6 +81,21 @@ export class AdminExecService {
       return null;
     }
 
+    const tool = getToolDefinition(plan.actionType);
+    const validation = validatePlan(plan, tool);
+    if (!validation.ok) {
+      await this.deps.decisionLogRepository.append(
+        {
+          actor: "AI",
+          action: "HOLD",
+          reason: `Admin plan invalid: ${validation.errors.join(" | ")}`,
+          timestamp: new Date(),
+        },
+        candidate.id,
+      );
+      return null;
+    }
+
     const request: AdminExecRequest = {
       id: randomUUID(),
       candidateId: candidate.id,
@@ -110,6 +125,31 @@ export class AdminExecService {
   async approveAndExecute(requestId: string, token: string): Promise<void> {
     const request = await this.deps.requestRepository.getById(requestId);
     if (!request) {
+      return;
+    }
+
+    const tool = getToolDefinition(request.actionType);
+    const validation = validatePlan(
+      {
+        actionType: request.actionType,
+        params: {
+          userId: request.targetUserId ?? "",
+          orgId: request.targetOrgId ?? "",
+        },
+        payload: request.payload ?? {},
+        rationale: [],
+      },
+      tool,
+    );
+
+    if (!validation.ok) {
+      await this.deps.requestRepository.updateStatus(requestId, "FAILED");
+      await this.deps.decisionLogRepository.append({
+        actor: "HUMAN",
+        action: "HOLD",
+        reason: `Admin exec invalid: ${validation.errors.join(" | ")}`,
+        timestamp: new Date(),
+      });
       return;
     }
 

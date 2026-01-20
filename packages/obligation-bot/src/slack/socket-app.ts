@@ -46,7 +46,6 @@ export async function startSlackSocketApp(): Promise<void> {
       ? new AdminExecService(
           {
             adminApiBaseUrl,
-            openaiApiKey,
             openaiModel,
             openaiBaseUrl,
           },
@@ -56,16 +55,16 @@ export async function startSlackSocketApp(): Promise<void> {
 
   const service = new ObligationService({
     contextScanner: openaiApiKey
-      ? new OpenAIContextScanner({ apiKey: openaiApiKey, model: openaiModel, baseURL: openaiBaseUrl })
+      ? new OpenAIContextScanner({ model: openaiModel, baseURL: openaiBaseUrl })
       : new NoopContextScanner(),
     decisionAgent: openaiApiKey
-      ? new OpenAIDecisionAgent({ apiKey: openaiApiKey, model: openaiModel, baseURL: openaiBaseUrl })
+      ? new OpenAIDecisionAgent({ model: openaiModel, baseURL: openaiBaseUrl })
       : new NoopDecisionAgent(),
     doneAssessor: openaiApiKey
-      ? new OpenAIDoneAssessor({ apiKey: openaiApiKey, model: openaiModel, baseURL: openaiBaseUrl })
+      ? new OpenAIDoneAssessor({ model: openaiModel, baseURL: openaiBaseUrl })
       : new NoopDoneAssessor(),
     riskAgent: openaiApiKey
-      ? new OpenAIRiskAgent({ apiKey: openaiApiKey, model: openaiModel, baseURL: openaiBaseUrl })
+      ? new OpenAIRiskAgent({ model: openaiModel, baseURL: openaiBaseUrl })
       : new NoopRiskAgent(),
     candidateRepository,
     decisionLogRepository,
@@ -86,7 +85,8 @@ export async function startSlackSocketApp(): Promise<void> {
     console.log("[slack] app_home_opened", event.user);
     const candidates = await service.listCandidates();
     const pendingRequests = await service.listPendingAdminExecRequests();
-    await publishAppHome({ botToken }, event.user, candidates, pendingRequests);
+    const adminLoggedIn = await service.isAdminLoggedIn(event.user);
+    await publishAppHome({ botToken }, event.user, candidates, pendingRequests, adminLoggedIn);
   });
 
   app.event("message", async ({ event }) => {
@@ -177,7 +177,8 @@ export async function startSlackSocketApp(): Promise<void> {
     if (body.user?.id) {
       const candidates = await service.listCandidates();
       const pendingRequests = await service.listPendingAdminExecRequests();
-      await publishAppHome({ botToken }, body.user.id, candidates, pendingRequests);
+      const adminLoggedIn = await service.isAdminLoggedIn(body.user.id);
+      await publishAppHome({ botToken }, body.user.id, candidates, pendingRequests, adminLoggedIn);
     }
   });
 

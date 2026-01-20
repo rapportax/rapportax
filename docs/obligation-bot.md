@@ -81,6 +81,7 @@ interface WorkerDefinition {
 - App Home publish 호출
 - Slack HTTP 서버 (Events/Interactivity/App Home publish)
 - Admin Execute 요청/승인/실행 플로우 (API 기반)
+- OpenAI Agent SDK 기반 에이전트 연결
 
 미구현 (요청 필요)
  - Worker 실행 런타임 및 실제 worker 레지스트리
@@ -93,8 +94,15 @@ interface WorkerDefinition {
 2) Slack 모달에서 Admin 로그인 입력 → 토큰 발급 (`/api/auth`)
 3) 현재 상태 조회 (user detail/org summary)
 4) LLM이 실행할 API 결정
-5) 승인 대기 상태로 App Home에 표시
-6) 승인 시 API 실행 → 결과 저장
+5) Tool Registry + Validator로 검증
+6) 승인 대기 상태로 App Home에 표시
+7) 승인 시 API 실행 → 결과 저장
+
+## Credit 정책
+- `credit`(절대값) 또는 `creditDelta`(증감) 중 하나만 허용
+
+## LLM 출력 정책
+- 모든 필드는 nullable로 허용 (누락 시 기본값/보수적 처리)
 
 ## Slack DM 플로우 (Execute 후)
 - `Admin Execute` 클릭 시 DM으로 승인 요청 발송

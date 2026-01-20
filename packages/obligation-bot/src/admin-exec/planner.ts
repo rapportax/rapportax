@@ -1,25 +1,24 @@
-import OpenAI from "openai";
+import { Agent, run } from "@openai/agents";
 import type { ContextObject } from "../types";
 import type { AdminActionType } from "../types";
 
 export interface OpenAIConfig {
-  apiKey: string;
   model: string;
   baseURL?: string;
 }
 
 export interface AdminTargetExtraction {
   targetType: "user" | "org" | "unknown";
-  userId?: string;
-  orgId?: string;
+  userId?: string | null;
+  orgId?: string | null;
   intent: AdminActionType | "unknown";
   desired?: {
-    plan?: string;
-    tier?: string;
-    credit?: number;
-    creditDelta?: number;
-    orgId?: string;
-  };
+    plan?: string | null;
+    tier?: string | null;
+    credit?: number | null;
+    creditDelta?: number | null;
+    orgId?: string | null;
+  } | null;
 }
 
 export interface AdminExecutionPlan {
@@ -30,72 +29,37 @@ export interface AdminExecutionPlan {
 }
 
 export class OpenAIAdminPlanner {
-  private readonly client: OpenAI;
+  private readonly targetAgent: Agent;
+  private readonly planAgent: Agent;
 
   constructor(private readonly config: OpenAIConfig) {
-    this.client = new OpenAI({ apiKey: config.apiKey, baseURL: config.baseURL });
+    if (config.baseURL) {
+      process.env.OPENAI_BASE_URL = config.baseURL;
+    }
+    this.targetAgent = new Agent({
+      name: "AdminTargetExtractor",
+      instructions:
+        "Extract admin execution intent and target identifiers from the event. Return JSON with keys { targetType, userId, orgId, intent, desired }. Include all keys; use null if unknown.",
+      model: config.model,
+    });
+    this.planAgent = new Agent({
+      name: "AdminPlanner",
+      instructions:
+        "Decide which admin API action to execute based on target and current state. Return JSON with keys { actionType, params, payload, rationale }. Include all keys; use null if unknown.",
+      model: config.model,
+    });
   }
 
   async extractTarget(context: ContextObject): Promise<AdminTargetExtraction> {
-    const response = await this.client.responses.create({
-      model: this.config.model,
-      input: [
-        {
-          role: "system",
-          content:
-            "Extract admin execution intent and target identifiers from the event. Return JSON only.",
-        },
-        {
-          role: "user",
-          content: buildContextText(context),
-        },
-      ],
-      text: {
-        format: {
-          type: "json_schema",
-          name: "admin_target",
-          schema: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              targetType: { type: "string", enum: ["user", "org", "unknown"] },
-              userId: { type: "string" },
-              orgId: { type: "string" },
-              intent: {
-                type: "string",
-                enum: [
-                  "grant_pro_plan",
-                  "update_org_tier",
-                  "update_org_credit",
-                  "assign_org",
-                  "unknown",
-                ],
-              },
-              desired: {
-                type: "object",
-                additionalProperties: false,
-                properties: {
-                  plan: { type: ["string", "null"] },
-                  tier: { type: ["string", "null"] },
-                  credit: { type: ["number", "null"] },
-                  creditDelta: { type: ["number", "null"] },
-                  orgId: { type: ["string", "null"] },
-                },
-                required: ["plan", "tier", "credit", "creditDelta", "orgId"],
-              },
-            },
-            required: ["targetType", "intent"],
-          },
-          strict: true,
-        },
-      },
-      temperature: 0.2,
-      max_output_tokens: 200,
-      store: false,
-    });
-
-    const text = extractOutputText(response);
-    return JSON.parse(text) as AdminTargetExtraction;
+    const result = await run(this.targetAgent, buildContextText(context));
+    const parsed = safeJsonParse(result.finalOutput);
+    return {
+      targetType: normalizeTargetType(parsed.targetType),
+      userId: parsed.userId ? String(parsed.userId) : null,
+      orgId: parsed.orgId ? String(parsed.orgId) : null,
+      intent: normalizeIntent(parsed.intent),
+      desired: parsed.desired ? (parsed.desired as AdminTargetExtraction["desired"]) : null,
+    };
   }
 
   async decidePlan(
@@ -103,57 +67,24 @@ export class OpenAIAdminPlanner {
     target: AdminTargetExtraction,
     stateSnapshot: unknown,
   ): Promise<AdminExecutionPlan> {
-    const response = await this.client.responses.create({
-      model: this.config.model,
-      input: [
-        {
-          role: "system",
-          content:
-            "Decide which admin API action to execute based on target and current state. Return JSON only.",
-        },
-        {
-          role: "user",
-          content: [
-            buildContextText(context),
-            `target: ${JSON.stringify(target)}`,
-            `state: ${JSON.stringify(stateSnapshot)}`,
-          ].join("\n"),
-        },
-      ],
-      text: {
-        format: {
-          type: "json_schema",
-          name: "admin_plan",
-          schema: {
-            type: "object",
-            additionalProperties: false,
-            properties: {
-              actionType: {
-                type: "string",
-                enum: ["grant_pro_plan", "update_org_tier", "update_org_credit", "assign_org", "none"],
-              },
-              params: {
-                type: "object",
-                additionalProperties: { type: "string" },
-              },
-              payload: {
-                type: "object",
-                additionalProperties: true,
-              },
-              rationale: { type: "array", items: { type: "string" } },
-            },
-            required: ["actionType", "params", "rationale"],
-          },
-          strict: true,
-        },
-      },
-      temperature: 0.2,
-      max_output_tokens: 240,
-      store: false,
-    });
+    const input = [
+      buildContextText(context),
+      `target: ${JSON.stringify(target)}`,
+      `state: ${JSON.stringify(stateSnapshot)}`,
+    ].join("\n");
+    const result = await run(this.planAgent, input);
+    const parsed = safeJsonParse(result.finalOutput);
 
-    const text = extractOutputText(response);
-    return JSON.parse(text) as AdminExecutionPlan;
+    const actionType = normalizeActionType(parsed.actionType);
+    const params = typeof parsed.params === "object" && parsed.params ? (parsed.params as Record<string, string>) : {};
+    const payload = typeof parsed.payload === "object" && parsed.payload ? (parsed.payload as Record<string, unknown>) : undefined;
+    const rationale = Array.isArray(parsed.rationale)
+      ? parsed.rationale.map((item: unknown) => String(item))
+      : parsed.rationale
+        ? [String(parsed.rationale)]
+        : [];
+
+    return { actionType, params, payload, rationale };
   }
 }
 
@@ -174,28 +105,46 @@ function buildContextText(context: ContextObject): string {
   return lines.join("\n");
 }
 
-function extractOutputText(response: unknown): string {
-  const anyResponse = response as {
-    output_text?: string;
-    output?: Array<{ type?: string; content?: Array<{ type?: string; text?: string }> }>;
-  };
-
-  if (typeof anyResponse.output_text === "string") {
-    return anyResponse.output_text;
+function safeJsonParse(text: unknown): Record<string, unknown> {
+  if (typeof text !== "string") {
+    return {};
   }
-
-  const output = anyResponse.output ?? [];
-  for (const item of output) {
-    if (item.type !== "message") {
-      continue;
-    }
-    const content = item.content ?? [];
-    for (const part of content) {
-      if (part.type === "output_text" && part.text) {
-        return part.text;
-      }
-    }
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    return {};
   }
+}
 
-  return "{}";
+function normalizeTargetType(value: unknown): AdminTargetExtraction["targetType"] {
+  if (value === "user" || value === "org" || value === "unknown") {
+    return value;
+  }
+  return "unknown";
+}
+
+function normalizeIntent(value: unknown): AdminTargetExtraction["intent"] {
+  if (
+    value === "grant_pro_plan" ||
+    value === "update_org_tier" ||
+    value === "update_org_credit" ||
+    value === "assign_org" ||
+    value === "unknown"
+  ) {
+    return value;
+  }
+  return "unknown";
+}
+
+function normalizeActionType(value: unknown): AdminExecutionPlan["actionType"] {
+  if (
+    value === "grant_pro_plan" ||
+    value === "update_org_tier" ||
+    value === "update_org_credit" ||
+    value === "assign_org" ||
+    value === "none"
+  ) {
+    return value;
+  }
+  return "none";
 }

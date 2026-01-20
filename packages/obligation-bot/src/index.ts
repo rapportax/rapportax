@@ -24,3 +24,5 @@ export * from "./admin-exec/planner";
 export * from "./admin-exec/service";
 export * from "./slack/messages";
 export * from "./slack/modals";
+export * from "./admin-exec/registry";
+export * from "./admin-exec/guard";
