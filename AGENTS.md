@@ -22,11 +22,28 @@ Input Sources -> Event Normalizer -> Multi-Agent Layer -> Decision Agent -> TODO
 - Dependency Agent: 중복/선행 여부 판단.
 - Ownership Agent: 책임자(사용자/팀) 추론.
 - Decision Agent: PROPOSE/HOLD/IGNORE 결정 및 근거 제공.
+- Orchestrator Agent: 워크플로 중앙 조정, 에이전트 응답 합성 및 최종 결정.
+- PO Agent: 업무 범위/목표/수용 기준 정의.
+- Developer Agent: 구현 계획, 리스크, 검증 시나리오 제안.
+- QA Agent: 테스트 계획, 엣지 케이스, 품질 게이트 정의.
 
 ## Agent SDK 규칙
 - OpenAI Agent SDK (JS) 사용.
 - 에이전트 간 직접 호출 금지.
 - 공유 상태는 오케스트레이터가 전달하는 Context Object만 사용.
+- 모든 에이전트 출력은 JSON 스키마를 준수.
+
+## 멀티 에이전트 워크플로 (PO/Dev/QA)
+오케스트레이터가 단일 진입점이며, PO → Developer → QA → Orchestrator 순서로 진행한다.
+각 에이전트는 이전 결과를 Context Object로 전달받아 다음 결정을 보완한다.
+
+```
+Task/Signal -> Orchestrator
+  -> PO (요구사항/수용기준)
+  -> Developer (구현/리스크/검증)
+  -> QA (테스트/품질게이트)
+  -> Orchestrator (결정/다음 단계)
+```
 
 ## 데이터 계약
 ### Context Scanner 출력
@@ -66,6 +83,44 @@ Input Sources -> Event Normalizer -> Multi-Agent Layer -> Decision Agent -> TODO
 {
   decision: "PROPOSE" | "HOLD" | "IGNORE",
   rationale: string[]
+}
+
+### PO 출력
+{
+  summary: string,
+  goals: string[],
+  nonGoals: string[],
+  acceptanceCriteria: string[],
+  assumptions: string[],
+  constraints: string[],
+  openQuestions: string[]
+}
+
+### Developer 출력
+{
+  approach: string,
+  plan: string[],
+  filesToTouch: string[],
+  risks: string[],
+  dependencies: string[],
+  validationPlan: string[]
+}
+
+### QA 출력
+{
+  testPlan: string[],
+  edgeCases: string[],
+  riskAreas: string[],
+  automationCandidates: string[],
+  qualityGate: string[]
+}
+
+### Orchestrator 출력
+{
+  decision: "PROCEED" | "NEEDS_INPUT" | "BLOCKED",
+  summary: string,
+  rationale: string[],
+  nextSteps: string[]
 }
 
 ## TODO 후보 모델 (TypeScript)
