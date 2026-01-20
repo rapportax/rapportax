@@ -13,8 +13,6 @@ export * from "./slack/publish";
 export * from "./slack/server";
 export * from "./slack/signature";
 export * from "./slack/types";
-export * from "./slack/http-server";
-export * from "./slack/app";
 export * from "./slack/env";
 export * from "./di";
 export * from "./slack/socket-app";

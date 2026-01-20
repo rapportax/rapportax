@@ -13,7 +13,6 @@ import { AdminExecService } from "./admin-exec/service";
 import { ExecutorService } from "./executor/service";
 import { createLocalWorkerRuntime } from "./workers/runtime";
 import { DEFAULT_WORKERS } from "./workers/registry";
-import type { SlackHttpServerConfig } from "./slack/http-server";
 
 const requireEnv = (name: string): string => {
   const value = process.env[name];
@@ -102,61 +101,6 @@ const createService = (params: {
     adminTokenRepository: params.includeAdminTokens ? params.repositories.adminTokenRepository : undefined,
     executorService,
   });
-};
-
-export interface SlackAppRuntime {
-  service: ObligationService;
-  config: SlackHttpServerConfig;
-}
-
-export const createSlackAppRuntime = (): SlackAppRuntime => {
-  loadEnv();
-  const signingSecret = requireEnv("SLACK_SIGNING_SECRET");
-  const botToken = requireEnv("SLACK_BOT_TOKEN");
-  const databaseUrl = requireEnv("DATABASE_URL");
-  const port = Number(process.env.PORT ?? "3000");
-  const openaiApiKey = process.env.OPENAI_API_KEY;
-  const openaiModel = process.env.OPENAI_MODEL ?? "gpt-5.2";
-  const openaiBaseUrl = process.env.OPENAI_BASE_URL;
-  const adminApiBaseUrl = process.env.ADMIN_API_BASE_URL;
-  const adminApiUsername = process.env.ADMIN_API_USERNAME;
-  const adminApiPassword = process.env.ADMIN_API_PASSWORD;
-
-  const repositories = createRepositories(databaseUrl);
-  const adminExecService =
-    openaiApiKey && adminApiBaseUrl && adminApiUsername && adminApiPassword
-      ? new AdminExecService(
-          {
-            adminApiBaseUrl,
-            adminUsername: adminApiUsername,
-            adminPassword: adminApiPassword,
-            openaiApiKey,
-            openaiModel,
-            openaiBaseUrl,
-          },
-          {
-            requestRepository: repositories.adminExecRequestRepository,
-            decisionLogRepository: repositories.decisionLogRepository,
-          },
-        )
-      : undefined;
-
-  const service = createService({
-    repositories,
-    openaiApiKey,
-    openaiModel,
-    openaiBaseUrl,
-    adminExecService,
-  });
-
-  return {
-    service,
-    config: {
-      signingSecret,
-      botToken,
-      port,
-    },
-  };
 };
 
 export interface SlackSocketAppContext {

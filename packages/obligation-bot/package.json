@@ -7,7 +7,6 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/slack/socket-app.ts",
-    "slack:dev": "tsx src/slack/app.ts",
     "test": "node -e \"console.log('no tests yet')\""
   },
   "dependencies": {
