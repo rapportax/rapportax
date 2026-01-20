@@ -65,16 +65,7 @@ async function main(): Promise<void> {
     },
   );
 
-  console.log(
-    JSON.stringify(
-      {
-        synthesis: result.synthesis,
-        implementation: result.implementation,
-      },
-      null,
-      2,
-    ),
-  );
+  console.log(JSON.stringify(result, null, 2));
 }
 
 main().catch((error) => {

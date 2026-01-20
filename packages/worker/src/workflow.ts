@@ -9,18 +9,8 @@ import {
   createQaAgent,
 } from "./agents";
 import {
-  DevOutput,
-  DevOutputSchema,
-  DevResearchOutput,
-  DevResearchOutputSchema,
-  ImplementationOutput,
-  ImplementationOutputSchema,
   OrchestratorOutput,
   OrchestratorOutputSchema,
-  PoOutput,
-  PoOutputSchema,
-  QaOutput,
-  QaOutputSchema,
 } from "./schemas";
 import { createRepoTools } from "./tools";
 
@@ -37,21 +27,16 @@ export interface WorkflowOptions {
   runner?: Runner;
   repoRoot?: string;
   logger?: (message: string, data?: Record<string, unknown>) => void;
-  enableImplementation?: boolean;
 }
 
 export interface WorkflowResult {
   requestId: string;
-  poDraft: PoOutput;
-  devResearch: DevResearchOutput;
-  po: PoOutput;
-  dev: DevOutput;
-  implementation?: ImplementationOutput;
-  qa: QaOutput;
-  synthesis: OrchestratorOutput;
+  lastAgent: string | null;
+  finalOutput: unknown;
+  orchestrator?: OrchestratorOutput;
 }
 
-const buildPoPrompt = (input: WorkflowInput): string => {
+const buildDynamicPrompt = (input: WorkflowInput): string => {
   const constraints = input.constraints?.length
     ? input.constraints.map((item) => `- ${item}`).join("\n")
     : "- (none)";
@@ -60,110 +45,15 @@ const buildPoPrompt = (input: WorkflowInput): string => {
     : "- (none)";
 
   return [
-    "당신은 Active TODO Discovery Bot의 업무를 평가합니다.",
+    "당신은 LLM 기반 오케스트레이터입니다. 필요한 에이전트를 도구/hand off로 호출하세요.",
+    "각 에이전트 출력은 JSON 스키마를 따릅니다. 필요한 경우 JSON을 해석해서 합성하세요.",
     `Task: ${input.task}`,
     `Context: ${input.context ?? "(없음)"}`,
     "Signals:",
     signals,
     "Constraints:",
     constraints,
-    "PO 요약과 수용 기준을 제공하세요.",
-  ].join("\n");
-};
-
-const buildDevPrompt = (input: WorkflowInput, po: PoOutput): string => {
-  return [
-    "당신은 PO 출력을 구현 계획으로 전환합니다.",
-    `Task: ${input.task}`,
-    `Context: ${input.context ?? "(없음)"}`,
-    "PO Output (JSON):",
-    JSON.stringify(po),
-    "구체적인 개발 계획을 제시하세요.",
-  ].join("\n");
-};
-
-const buildDevResearchPrompt = (
-  input: WorkflowInput,
-  poDraft: PoOutput,
-): string => {
-  return [
-    "당신은 PO 질문에 답하기 위해 현재 스펙과 코드를 조사합니다.",
-    `Task: ${input.task}`,
-    `Context: ${input.context ?? "(없음)"}`,
-    "PO Draft Output (JSON):",
-    JSON.stringify(poDraft),
-    "questionsForDev에 대한 답변과 근거를 제공하세요.",
-  ].join("\n");
-};
-
-const buildPoRefinementPrompt = (
-  input: WorkflowInput,
-  poDraft: PoOutput,
-  devResearch: DevResearchOutput,
-): string => {
-  return [
-    "DEV 조사 결과를 반영해 PO 산출물을 보완하세요.",
-    `Task: ${input.task}`,
-    `Context: ${input.context ?? "(없음)"}`,
-    "PO Draft Output (JSON):",
-    JSON.stringify(poDraft),
-    "DEV Research Output (JSON):",
-    JSON.stringify(devResearch),
-    "목표, 수용 기준, 제약, 질문을 업데이트하세요.",
-  ].join("\n");
-};
-
-const buildQaPrompt = (input: WorkflowInput, po: PoOutput, dev: DevOutput): string => {
-  return [
-    "당신은 구현을 위한 QA 가이드를 준비합니다.",
-    `Task: ${input.task}`,
-    "PO Output (JSON):",
-    JSON.stringify(po),
-    "Developer Output (JSON):",
-    JSON.stringify(dev),
-    "QA 테스트 계획과 품질 게이트를 제시하세요.",
-  ].join("\n");
-};
-
-const buildImplementationPrompt = (
-  input: WorkflowInput,
-  po: PoOutput,
-  dev: DevOutput,
-): string => {
-  return [
-    "당신은 실제 코드 변경을 수행합니다.",
-    `Task: ${input.task}`,
-    `Context: ${input.context ?? "(없음)"}`,
-    "PO Output (JSON):",
-    JSON.stringify(po),
-    "Developer Output (JSON):",
-    JSON.stringify(dev),
-    "리포지토리 도구를 활용해 변경을 수행하고 결과를 보고하세요.",
-  ].join("\n");
-};
-
-const buildOrchestratorPrompt = (
-  input: WorkflowInput,
-  po: PoOutput,
-  dev: DevOutput,
-  qa: QaOutput,
-  implementation?: ImplementationOutput,
-): string => {
-  const implementationBlock = implementation
-    ? ["Implementation Output (JSON):", JSON.stringify(implementation)]
-    : [];
-
-  return [
-    "PO, Developer, QA 출력을 합성해 최종 결정을 내리세요.",
-    `Task: ${input.task}`,
-    "PO Output (JSON):",
-    JSON.stringify(po),
-    "Developer Output (JSON):",
-    JSON.stringify(dev),
-    "QA Output (JSON):",
-    JSON.stringify(qa),
-    ...implementationBlock,
-    "결정, 근거, 다음 단계를 반환하세요.",
+    "최종 출력은 Orchestrator 스키마(JSON)로 반환하세요.",
   ].join("\n");
 };
 
@@ -192,138 +82,128 @@ export async function runMultiAgentWorkflow(
       },
     });
   const requestId = randomUUID();
-  const maxTurns = options.maxTurns ?? 6;
+  const maxTurns = options.maxTurns ?? 50;
   const repoRoot = options.repoRoot ?? process.cwd();
-  const productOwnerAgent = createProductOwnerAgent();
-  const developerResearchAgent = createDeveloperResearchAgent(
-    createRepoTools(repoRoot, "DeveloperResearch"),
-  );
-  const developerAgent = createDeveloperAgent(
-    createRepoTools(repoRoot, "Developer"),
-  );
-  const implementationAgent = createImplementationAgent(
-    createRepoTools(repoRoot, "Implementation"),
-  );
-  const qaAgent = createQaAgent();
-  const orchestratorAgent = createOrchestratorAgent();
-  const enableImplementation = options.enableImplementation ?? false;
+  const repoToolsForDevResearch = createRepoTools(repoRoot, "DeveloperResearch");
+  const repoToolsForDev = createRepoTools(repoRoot, "Developer");
+  const repoToolsForImpl = createRepoTools(repoRoot, "Implementation");
 
-  log("workflow.start", { requestId, task: input.task });
+  const poBase = createProductOwnerAgent();
+  const devResearchBase = createDeveloperResearchAgent(repoToolsForDevResearch);
+  const devBase = createDeveloperAgent(repoToolsForDev);
+  const implBase = createImplementationAgent(repoToolsForImpl);
+  const qaBase = createQaAgent();
 
-  log("workflow.step.po_draft.start", { requestId });
-  const poDraftResult = await runner.run(
-    productOwnerAgent,
-    buildPoPrompt(input),
-    {
-      maxTurns,
-    },
-  );
-  const poDraft = PoOutputSchema.parse(poDraftResult.finalOutput);
-  log("workflow.step.po_draft.done", {
-    requestId,
-    questionsForDevCount: poDraft.questionsForDev.length,
-  });
-
-  log("workflow.step.dev_research.start", { requestId });
-  const devResearchResult = await runner.run(
-    developerResearchAgent,
-    buildDevResearchPrompt(input, poDraft),
-    {
-      maxTurns,
-    },
-  );
-  const devResearch = DevResearchOutputSchema.parse(
-    devResearchResult.finalOutput,
-  );
-  log("workflow.step.dev_research.done", {
-    requestId,
-    answersForPoCount: devResearch.answersForPo.length,
-    filesVisitedCount: devResearch.filesVisited.length,
-  });
-
-  log("workflow.step.po_refine.start", { requestId });
-  const poResult = await runner.run(
-    productOwnerAgent,
-    buildPoRefinementPrompt(input, poDraft, devResearch),
-    {
-      maxTurns,
-    },
-  );
-  const po = PoOutputSchema.parse(poResult.finalOutput);
-  log("workflow.step.po_refine.done", {
-    requestId,
-    acceptanceCriteriaCount: po.acceptanceCriteria.length,
-  });
-
-  log("workflow.step.dev_plan.start", { requestId });
-  const devResult = await runner.run(
-    developerAgent,
-    buildDevPrompt(input, po),
-    {
-      maxTurns,
-    },
-  );
-  const dev = DevOutputSchema.parse(devResult.finalOutput);
-  log("workflow.step.dev_plan.done", {
-    requestId,
-    planCount: dev.plan.length,
-    filesToTouchCount: dev.filesToTouch.length,
-  });
-
-  let implementation: ImplementationOutput | undefined;
-  if (enableImplementation) {
-    log("workflow.step.implementation.start", { requestId });
-    const implementationResult = await runner.run(
-      implementationAgent,
-      buildImplementationPrompt(input, po, dev),
-      {
-        maxTurns,
+  const agentToolConfig = {
+    runConfig: {
+      model,
+      modelSettings: {
+        reasoning: { effort: "medium" },
       },
-    );
-    implementation = ImplementationOutputSchema.parse(
-      implementationResult.finalOutput,
-    );
-    log("workflow.step.implementation.done", {
-      requestId,
-      filesChangedCount: implementation.filesChanged.length,
-    });
+    },
+    runOptions: {
+      maxTurns,
+    },
+  };
+
+  const poTool = poBase.asTool({
+    toolName: "ask_po",
+    toolDescription:
+      "PO 에이전트에게 질문합니다. PO 스키마 JSON 문자열을 반환합니다.",
+    ...agentToolConfig,
+  });
+  const devResearchTool = devResearchBase.asTool({
+    toolName: "ask_dev_research",
+    toolDescription:
+      "DeveloperResearch 에이전트에게 조사 요청을 보냅니다. JSON 문자열을 반환합니다.",
+    ...agentToolConfig,
+  });
+  const devTool = devBase.asTool({
+    toolName: "ask_dev",
+    toolDescription:
+      "Developer 에이전트에게 구현 질문을 보냅니다. JSON 문자열을 반환합니다.",
+    ...agentToolConfig,
+  });
+  const implTool = implBase.asTool({
+    toolName: "ask_implementation",
+    toolDescription:
+      "Implementation 에이전트에게 코드 변경을 요청합니다. JSON 문자열을 반환합니다.",
+    ...agentToolConfig,
+  });
+  const qaTool = qaBase.asTool({
+    toolName: "ask_qa",
+    toolDescription:
+      "QA 에이전트에게 테스트 관점 질문을 보냅니다. JSON 문자열을 반환합니다.",
+    ...agentToolConfig,
+  });
+
+  const poAgent = createProductOwnerAgent([devTool, qaTool, devResearchTool]);
+  const devResearchAgent = createDeveloperResearchAgent([
+    ...repoToolsForDevResearch,
+    poTool,
+    devTool,
+  ]);
+  const devAgent = createDeveloperAgent([...repoToolsForDev, poTool, qaTool]);
+  const implAgent = createImplementationAgent([
+    ...repoToolsForImpl,
+    poTool,
+    devTool,
+  ]);
+  const qaAgent = createQaAgent([poTool, devTool]);
+  const orchestratorAgent = createOrchestratorAgent(
+    [poTool, devTool, qaTool, devResearchTool, implTool],
+    [poAgent, devResearchAgent, devAgent, implAgent, qaAgent],
+  );
+
+  log("workflow.dynamic.start", { requestId, task: input.task });
+
+  const result = await runner.run(
+    orchestratorAgent,
+    buildDynamicPrompt(input),
+    { maxTurns },
+  );
+
+  const lastAgent = result.lastAgent?.name ?? null;
+  let orchestrator: OrchestratorOutput | undefined;
+
+  if (result.finalOutput) {
+    try {
+      orchestrator = OrchestratorOutputSchema.parse(result.finalOutput);
+    } catch {
+      orchestrator = undefined;
+    }
   }
 
-  log("workflow.step.qa.start", { requestId });
-  const qaResult = await runner.run(qaAgent, buildQaPrompt(input, po, dev), {
-    maxTurns,
-  });
-  const qa = QaOutputSchema.parse(qaResult.finalOutput);
-  log("workflow.step.qa.done", {
+  if (!orchestrator && result.finalOutput) {
+    const finalizer = createOrchestratorAgent([poTool, devTool, qaTool]);
+    const finalResult = await runner.run(
+      finalizer,
+      [
+        "최종 결정이 Orchestrator 스키마로 필요합니다.",
+        `Task: ${input.task}`,
+        "이전 에이전트 출력(JSON):",
+        JSON.stringify(result.finalOutput),
+        "이 내용을 바탕으로 Orchestrator 스키마(JSON)로 요약하세요.",
+      ].join("\n"),
+      { maxTurns },
+    );
+    try {
+      orchestrator = OrchestratorOutputSchema.parse(finalResult.finalOutput);
+    } catch {
+      orchestrator = undefined;
+    }
+  }
+
+  log("workflow.dynamic.done", {
     requestId,
-    testPlanCount: qa.testPlan.length,
+    lastAgent,
+    decision: orchestrator?.decision ?? null,
   });
 
-  log("workflow.step.synthesis.start", { requestId });
-  const orchestratorResult = await runner.run(
-    orchestratorAgent,
-    buildOrchestratorPrompt(input, po, dev, qa, implementation),
-    {
-      maxTurns,
-    },
-  );
-  const synthesis = OrchestratorOutputSchema.parse(
-    orchestratorResult.finalOutput,
-  );
-  log("workflow.step.synthesis.done", {
-    requestId,
-    decision: synthesis.decision,
-  });
-
-  log("workflow.done", { requestId });
   return {
     requestId,
-    poDraft,
-    devResearch,
-    po,
-    dev,
-    implementation,
-    qa,
-    synthesis,
+    lastAgent,
+    finalOutput: result.finalOutput ?? null,
+    orchestrator,
   };
 }

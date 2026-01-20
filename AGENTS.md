@@ -36,19 +36,16 @@ Input Sources -> Event Normalizer -> Multi-Agent Layer -> Decision Agent -> TODO
 - Developer 계열 에이전트는 리포지토리 조회 도구(list_repo_files, read_repo_file, search_repo)를 사용할 수 있음.
 - 리포지토리 도구 입력 스키마는 optional 대신 nullable을 사용한다. (strict 스키마에서 required 누락 오류 방지)
 - 실제 코드 변경은 apply_repo_patch 도구를 통해서만 수행한다. 변경 전 dryRun 체크를 수행한다.
+- 오케스트레이터는 handoff와 agents-as-tools를 사용해 에이전트를 유동적으로 호출한다.
 
-## 멀티 에이전트 워크플로 (PO/Dev/QA)
-오케스트레이터가 단일 진입점이며, PO → Developer → QA → Orchestrator 순서로 진행한다.
-각 에이전트는 이전 결과를 Context Object로 전달받아 다음 결정을 보완한다.
+## 멀티 에이전트 워크플로 (LLM 오케스트레이션)
+오케스트레이터가 단일 진입점이며, LLM이 필요에 따라 handoff 또는 agents-as-tools로
+에이전트를 호출한다. 정적 순서가 아니라 상황에 맞춰 질의/응답이 유동적으로 이어진다.
 
 ```
 Task/Signal -> Orchestrator
-  -> PO (요구사항/수용기준)
-  -> Developer Research (코드/스펙 확인, PO 질문 응답)
-  -> PO (질문 반영해 정제)
-  -> Developer (구현/리스크/검증)
-  -> Implementation (코드 변경 적용)
-  -> QA (테스트/품질게이트)
+  -> (agents-as-tools / handoff)
+    - PO / Dev Research / Dev / Implementation / QA
   -> Orchestrator (결정/다음 단계)
 ```
 
