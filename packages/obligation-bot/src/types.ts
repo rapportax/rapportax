@@ -103,24 +103,3 @@ export interface CandidateResult {
   decision: DecisionOutput;
   done: DoneAssessment;
 }
-
-export type AdminExecStatus = "PENDING_APPROVAL" | "APPROVED" | "REJECTED" | "EXECUTED" | "FAILED";
-
-export type AdminActionType =
-  | "grant_pro_plan"
-  | "update_org_tier"
-  | "update_org_credit"
-  | "assign_org"
-  | "none";
-
-export interface AdminExecRequest {
-  id: string;
-  candidateId: string;
-  status: AdminExecStatus;
-  actionType: AdminActionType;
-  requestedByUserId?: string;
-  targetUserId?: string;
-  targetOrgId?: string;
-  payload?: Record<string, unknown>;
-  rationale?: string;
-}

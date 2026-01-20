@@ -9,7 +9,7 @@ const REQUIRED_SCOPE: Record<string, string> = {
   update_org_credit: "ORG_ADMIN",
 };
 
-export interface SlackCommandContext {
+export interface AdminCommandContext {
   rawText: string;
   actor: Actor;
   authSessionId?: string;
@@ -17,8 +17,8 @@ export interface SlackCommandContext {
   adminApi: AdminApiClient;
 }
 
-export async function handleSlackCommand(
-  context: SlackCommandContext,
+export async function handleAdminCommand(
+  context: AdminCommandContext,
 ): Promise<{ ok: boolean; message: string }> {
   const command = parseAdminCommand(context.rawText);
   if (!command) {

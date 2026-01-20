@@ -1,12 +1,10 @@
 import { Pool } from "pg";
 import { randomUUID } from "crypto";
-import type { AdminExecRequest, DecisionLog, TodoCandidate } from "../types";
+import type { DecisionLog, TodoCandidate } from "../types";
 import type {
   DecisionLogRepository,
   CandidateRepository,
   CandidateStatus,
-  AdminExecRequestRepository,
-  AdminTokenRepository,
 } from "./interfaces";
 
 export interface PostgresConfig {
@@ -94,146 +92,5 @@ export class PostgresDecisionLogRepository implements DecisionLogRepository {
         entry.timestamp,
       ],
     );
-  }
-}
-
-export class PostgresAdminExecRequestRepository implements AdminExecRequestRepository {
-  constructor(private readonly client: PostgresClient) {}
-
-  async create(request: AdminExecRequest): Promise<void> {
-    await this.client.execute(
-      `INSERT INTO admin_exec_requests
-       (id, candidate_id, status, action_type, requested_by_user_id, target_user_id, target_org_id, payload, rationale)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [
-        request.id,
-        request.candidateId,
-        request.status,
-        request.actionType,
-        request.requestedByUserId ?? null,
-        request.targetUserId ?? null,
-        request.targetOrgId ?? null,
-        request.payload ? JSON.stringify(request.payload) : null,
-        request.rationale ?? null,
-      ],
-    );
-  }
-
-  async listPending(): Promise<AdminExecRequest[]> {
-    const rows = await this.client.query<{
-      id: string;
-      candidate_id: string;
-      status: string;
-      action_type: string;
-      requested_by_user_id: string | null;
-      target_user_id: string | null;
-      target_org_id: string | null;
-      payload: Record<string, unknown> | null;
-      rationale: string | null;
-    }>(
-      "SELECT id, candidate_id, status, action_type, requested_by_user_id, target_user_id, target_org_id, payload, rationale FROM admin_exec_requests WHERE status = 'PENDING_APPROVAL' ORDER BY created_at DESC",
-    );
-
-    return rows.map((row) => ({
-      id: row.id,
-      candidateId: row.candidate_id,
-      status: row.status as AdminExecRequest["status"],
-      actionType: row.action_type as AdminExecRequest["actionType"],
-      requestedByUserId: row.requested_by_user_id ?? undefined,
-      targetUserId: row.target_user_id ?? undefined,
-      targetOrgId: row.target_org_id ?? undefined,
-      payload: row.payload ?? undefined,
-      rationale: row.rationale ?? undefined,
-    }));
-  }
-
-  async listPendingByCandidate(candidateId: string): Promise<AdminExecRequest[]> {
-    const rows = await this.client.query<{
-      id: string;
-      candidate_id: string;
-      status: string;
-      action_type: string;
-      requested_by_user_id: string | null;
-      target_user_id: string | null;
-      target_org_id: string | null;
-      payload: Record<string, unknown> | null;
-      rationale: string | null;
-    }>(
-      "SELECT id, candidate_id, status, action_type, requested_by_user_id, target_user_id, target_org_id, payload, rationale FROM admin_exec_requests WHERE candidate_id = $1 AND status = 'PENDING_APPROVAL' ORDER BY created_at DESC",
-      [candidateId],
-    );
-
-    return rows.map((row) => ({
-      id: row.id,
-      candidateId: row.candidate_id,
-      status: row.status as AdminExecRequest["status"],
-      actionType: row.action_type as AdminExecRequest["actionType"],
-      requestedByUserId: row.requested_by_user_id ?? undefined,
-      targetUserId: row.target_user_id ?? undefined,
-      targetOrgId: row.target_org_id ?? undefined,
-      payload: row.payload ?? undefined,
-      rationale: row.rationale ?? undefined,
-    }));
-  }
-
-  async updateStatus(id: string, status: AdminExecRequest["status"]): Promise<void> {
-    await this.client.execute(
-      "UPDATE admin_exec_requests SET status = $1, updated_at = NOW() WHERE id = $2",
-      [status, id],
-    );
-  }
-
-  async getById(id: string): Promise<AdminExecRequest | null> {
-    const rows = await this.client.query<{
-      id: string;
-      candidate_id: string;
-      status: string;
-      action_type: string;
-      requested_by_user_id: string | null;
-      target_user_id: string | null;
-      target_org_id: string | null;
-      payload: Record<string, unknown> | null;
-      rationale: string | null;
-    }>(
-      "SELECT id, candidate_id, status, action_type, requested_by_user_id, target_user_id, target_org_id, payload, rationale FROM admin_exec_requests WHERE id = $1 LIMIT 1",
-      [id],
-    );
-
-    const row = rows[0];
-    if (!row) return null;
-
-    return {
-      id: row.id,
-      candidateId: row.candidate_id,
-      status: row.status as AdminExecRequest["status"],
-      actionType: row.action_type as AdminExecRequest["actionType"],
-      requestedByUserId: row.requested_by_user_id ?? undefined,
-      targetUserId: row.target_user_id ?? undefined,
-      targetOrgId: row.target_org_id ?? undefined,
-      payload: row.payload ?? undefined,
-      rationale: row.rationale ?? undefined,
-    };
-  }
-}
-
-export class PostgresAdminTokenRepository implements AdminTokenRepository {
-  constructor(private readonly client: PostgresClient) {}
-
-  async upsert(slackUserId: string, accessToken: string): Promise<void> {
-    await this.client.execute(
-      `INSERT INTO admin_user_tokens (slack_user_id, access_token)
-       VALUES ($1, $2)
-       ON CONFLICT (slack_user_id)
-       DO UPDATE SET access_token = EXCLUDED.access_token, updated_at = NOW()`,
-      [slackUserId, accessToken],
-    );
-  }
-
-  async get(slackUserId: string): Promise<string | null> {
-    const rows = await this.client.query<{ access_token: string }>(
-      "SELECT access_token FROM admin_user_tokens WHERE slack_user_id = $1",
-      [slackUserId],
-    );
-    return rows[0]?.access_token ?? null;
   }
 }

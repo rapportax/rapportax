@@ -1,6 +1,6 @@
 import { Pool } from "pg";
 
-const DEFAULT_CONNECTION =
+const DATABASE_URL =
   "postgres://rapportax:rapportax@localhost:5432/rapportax";
 
 let pool: Pool | null = null;
@@ -8,8 +8,7 @@ let pool: Pool | null = null;
 export function getPool(): Pool {
   if (!pool) {
     pool = new Pool({
-      connectionString:
-        process.env.DATABASE_URL ?? DEFAULT_CONNECTION,
+      connectionString: DATABASE_URL,
     });
   }
   return pool;

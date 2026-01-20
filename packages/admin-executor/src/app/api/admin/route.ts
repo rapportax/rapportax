@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import { createAdminApiClient } from "../../../admin-api/client";
 import { verifyIdPassword } from "../../../auth/idPassword";
 import { createAuditLogger } from "../../../logging/audit";
-import { handleSlackCommand } from "../../../slack/handlers";
+import { handleAdminCommand } from "../../../command/handlers";
 import type { Actor } from "../../../index";
 import { verifyAdminToken } from "../../../auth/adminToken";
 
 export const runtime = "nodejs";
+
+const ADMIN_API_BASE_URL = "http://localhost:3000";
 
 interface AdminRequestBody {
   rawText: string;
@@ -43,13 +45,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const adminBaseUrl = process.env.ADMIN_API_BASE_URL;
-  if (!adminBaseUrl) {
-    return NextResponse.json(
-      { ok: false, message: "missing_admin_api_config" },
-      { status: 500 },
-    );
-  }
+  const adminBaseUrl = ADMIN_API_BASE_URL;
 
   const authHeader = request.headers.get("authorization") ?? "";
   const tokenMatch = authHeader.match(/^Bearer\\s+(.+)$/i);
@@ -88,7 +84,7 @@ export async function POST(request: Request) {
 
   const auditLogger = createAuditLogger();
 
-  const result = await handleSlackCommand({
+  const result = await handleAdminCommand({
     rawText: payload.rawText,
     actor: payload.actor,
     authSessionId: `bearer_${Date.now()}`,

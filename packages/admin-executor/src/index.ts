@@ -21,5 +21,14 @@ export * from "./auth/idPassword";
 export * from "./admin-api/client";
 export * from "./admin-api/endpoints";
 export * from "./logging/audit";
-export * from "./slack/commands";
-export * from "./slack/handlers";
+export * from "./command/commands";
+export * from "./command/handlers";
+export * from "./ai-exec/http-client";
+export type {
+  AdminExecCandidate,
+  AdminExecRequest,
+  AdminExecStatus,
+  AdminActionType,
+  DecisionLog,
+  ContextObject,
+} from "./ai-exec/types";

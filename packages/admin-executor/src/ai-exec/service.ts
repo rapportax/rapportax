@@ -1,6 +1,11 @@
 import { randomUUID } from "crypto";
-import type { AdminExecRequest, ContextObject, TodoCandidate } from "../types";
-import type { AdminExecRequestRepository, DecisionLogRepository } from "../storage/interfaces";
+import type {
+  AdminExecCandidate,
+  AdminExecRequest,
+  AdminExecRequestRepository,
+  ContextObject,
+  DecisionLogRepository,
+} from "./types";
 import { getOrgSummary, getUserDetail, executeAdminAction, verifyAdminToken } from "./api";
 import { resolveAdminEndpoint, type AdminEndpoint } from "./endpoints";
 import { OpenAIAdminPlanner } from "./planner";
@@ -36,7 +41,7 @@ export class AdminExecService {
   }
 
   async createExecutionRequest(
-    candidate: TodoCandidate,
+    candidate: AdminExecCandidate,
     token: string,
     requestedByUserId: string,
   ): Promise<AdminExecRequest | null> {
@@ -192,7 +197,7 @@ export class AdminExecService {
   }
 }
 
-function buildContextFromCandidate(candidate: TodoCandidate): ContextObject {
+function buildContextFromCandidate(candidate: AdminExecCandidate): ContextObject {
   return {
     event: {
       source: candidate.source as ContextObject["event"]["source"],

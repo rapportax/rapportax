@@ -14,7 +14,6 @@ Slack 이벤트와 기타 신호를 지속적으로 수집해 개인 의무(Obli
 6) 후보 저장 + 판단 로그 기록 (PostgreSQL)
 7) App Home에 후보 리스트 표시
 8) Execute/Hold/Ignore 처리
-9) Admin Execute 요청 → 승인 → 실행
 
 ## Phase 1 결정사항
 - Slack Event API의 최소 필드만 사용
@@ -22,7 +21,6 @@ Slack 이벤트와 기타 신호를 지속적으로 수집해 개인 의무(Obli
 - Worker 리스트는 추상 모델 유지
 - 저장소: PostgreSQL
 - HITL UI: Slack App Home
-- Admin Execute는 OpenAPI 스펙 기반 흐름으로 처리
 
 ## Slack 이벤트 스키마 (Phase 1)
 ```ts
@@ -65,7 +63,6 @@ interface WorkerDefinition {
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL` (기본: gpt-5.2)
  - `OPENAI_BASE_URL`
- - `ADMIN_API_BASE_URL`
 
 ## 구현 현황
 구현됨
@@ -80,7 +77,6 @@ interface WorkerDefinition {
 - Slack 서명 검증 및 이벤트/액션 핸들러
 - App Home publish 호출
 - Slack HTTP 서버 (Events/Interactivity/App Home publish)
-- Admin Execute 요청/승인/실행 플로우 (API 기반)
 - OpenAI Agent SDK 기반 에이전트 연결
 
 미구현 (요청 필요)
@@ -89,28 +85,9 @@ interface WorkerDefinition {
 ## 디렉터리 구조
 ```
 
-## Admin Execute Flow
-1) App Home에서 `Admin Execute` 클릭
-2) Slack 모달에서 Admin 로그인 입력 → 토큰 발급 (`/api/auth`)
-3) 현재 상태 조회 (user detail/org summary)
-4) LLM이 실행할 API 결정
-5) Tool Registry + Validator로 검증
-6) 승인 대기 상태로 App Home에 표시
-7) 승인 시 API 실행 → 결과 저장
-
-## Credit 정책
-- `credit`(절대값) 또는 `creditDelta`(증감) 중 하나만 허용
-
-## LLM 출력 정책
-- 모든 필드는 nullable로 허용 (누락 시 기본값/보수적 처리)
-
-## Slack DM 플로우 (Execute 후)
-- `Admin Execute` 클릭 시 DM으로 승인 요청 발송
-- Approve/Reject는 DM에서 처리 가능
-
-## Slack Modal (Admin Login)
-- App Home의 `Admin Login` 버튼 클릭 시 모달 표시
-- 입력값으로 `/api/auth` 토큰 발급 후 저장
+## Admin 실행 분리
+- Admin 실행/인증/토큰 관리 및 AI 실행 플로우는 `admin-executor`로 이관
+- Obligation Bot은 Slack 인터페이스 + 후보 관리에만 집중
 packages/obligation-bot/
   src/
     agents/
