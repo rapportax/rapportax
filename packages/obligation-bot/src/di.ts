@@ -13,6 +13,7 @@ import { AdminExecService } from "./admin-exec/service";
 import { ExecutorService } from "./executor/service";
 import { createLocalWorkerRuntime } from "./workers/runtime";
 import { DEFAULT_WORKERS } from "./workers/registry";
+import { WorkflowVisualizationService } from "./workflow-viz";
 
 const requireEnv = (name: string): string => {
   const value = process.env[name];
@@ -105,6 +106,7 @@ const createService = (params: {
 
 export interface SlackSocketAppContext {
   service: ObligationService;
+  workflowVizService: WorkflowVisualizationService;
   signingSecret: string;
   botToken: string;
   appToken: string;
@@ -148,8 +150,12 @@ export const createSlackSocketAppContext = (): SlackSocketAppContext => {
     includeAdminTokens: true,
   });
 
+  // Initialize workflow visualization service
+  const workflowVizService = new WorkflowVisualizationService({ botToken });
+
   return {
     service,
+    workflowVizService,
     signingSecret,
     botToken,
     appToken,

@@ -4,9 +4,31 @@ import { sendAdminApprovalRequest, sendAdminExecutionResult } from "./messages";
 import { buildAdminLoginModal, parseAdminLogin, ADMIN_LOGIN_VIEW_ID } from "./modals";
 import { issueAdminToken } from "../admin-exec/api";
 import { createSlackSocketAppContext } from "../di";
+import { workflowVizEvents } from "../workflow-viz";
 
 export async function startSlackSocketApp(): Promise<void> {
-  const { service, signingSecret, botToken, appToken, adminApiBaseUrl } = createSlackSocketAppContext();
+  const { service, workflowVizService, signingSecret, botToken, appToken, adminApiBaseUrl } = createSlackSocketAppContext();
+
+  // Connect EventEmitter to WorkflowVisualizationService (for same-process communication)
+  workflowVizEvents.on("session:start", (session) => {
+    workflowVizService.startSession(session).catch((err) => {
+      console.error("[workflow-viz] Error starting session:", err);
+    });
+  });
+
+  workflowVizEvents.on("session:end", ({ sessionId }) => {
+    workflowVizService.endSession(sessionId).catch((err) => {
+      console.error("[workflow-viz] Error ending session:", err);
+    });
+  });
+
+  workflowVizEvents.on("workflow:event", (event) => {
+    workflowVizService.handleEvent(event).catch((err) => {
+      console.error("[workflow-viz] Error handling event:", err);
+    });
+  });
+
+  console.log("[workflow-viz] Service initialized and EventEmitter connected");
 
   const app = new App({
     token: botToken,
