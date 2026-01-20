@@ -26,3 +26,6 @@ yarn-error.log
 .turbo/
 .repos/
 packages/worker/monitor/agent-log.jsonl
+
+.idea
+.serena
