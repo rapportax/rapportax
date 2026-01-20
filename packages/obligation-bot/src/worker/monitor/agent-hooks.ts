@@ -110,10 +110,21 @@ const formatJsonPreview = (value: string, max = 600): string => {
   return text;
 };
 
-const formatSlackEventLine = (event: AgentHookEvent, payload: AgentHookPayload): string => {
+const EVENT_LABEL: Record<AgentHookEvent, string> = {
+  agent_start: "에이전트 시작",
+  agent_end: "에이전트 종료",
+  agent_handoff: "핸드오프",
+  agent_tool_start: "도구 시작",
+  agent_tool_call: "도구 호출",
+  agent_tool_end: "도구 종료",
+};
+
+const formatSlackEventLine = (
+  event: AgentHookEvent,
+  payload: AgentHookPayload,
+): { text: string; blocks?: { type: string; text?: { type: string; text: string }; elements?: Array<{ type: string; text: string }> }[] } => {
   const emoji = EVENT_EMOJI[event] ?? "🧾";
   const parts: string[] = [];
-  const time = formatTime(payload.timestamp);
   const toolKey = payload.toolName ?? payload.tool ?? "";
   const targetAgent = TOOL_AGENT_MAP[toolKey];
   if (payload.agent) {
@@ -135,10 +146,11 @@ const formatSlackEventLine = (event: AgentHookEvent, payload: AgentHookPayload):
     parts.push(`name=\`${payload.toolName}\``);
   }
   if (payload.turnInputCount !== undefined) {
-    parts.push(`inputs=${payload.turnInputCount}`);
+    parts.push(`입력 ${payload.turnInputCount}개`);
   }
   if (payload.output) {
-    parts.push(`output=${truncate(payload.output, 120)}`);
+    const preview = formatJsonPreview(payload.output, 400);
+    parts.push(`요약=${truncate(preview || payload.output, 120)}`);
   }
   let resultBlock = "";
   if (payload.result) {
@@ -147,7 +159,45 @@ const formatSlackEventLine = (event: AgentHookEvent, payload: AgentHookPayload):
       resultBlock = `\n\`\`\`json\n${preview}\n\`\`\``;
     }
   }
-  return `${emoji} *${event}* \`[${time}]\` ${parts.join(" ")}`.trim() + resultBlock;
+  let outputBlock = "";
+  if (payload.output) {
+    const preview = formatJsonPreview(payload.output, 900);
+    if (preview && (preview.trim().startsWith("{") || preview.trim().startsWith("["))) {
+      outputBlock = `\n\`\`\`json\n${preview}\n\`\`\``;
+    }
+  }
+  const label = EVENT_LABEL[event] ?? event;
+  const text = `${emoji} *${label}* ${parts.join(" ")}`.trim();
+  if (event === "agent_end") {
+    const blocks = [
+      {
+        type: "section",
+        text: { type: "mrkdwn", text },
+      },
+    ];
+    if (outputBlock) {
+      blocks.push({
+        type: "section",
+        text: { type: "mrkdwn", text: outputBlock.trim() },
+      });
+    }
+    if (resultBlock) {
+      blocks.push({
+        type: "section",
+        text: { type: "mrkdwn", text: resultBlock.trim() },
+      });
+    }
+    return { text, blocks };
+  }
+  return {
+    text,
+    blocks: [
+      {
+        type: "context",
+        elements: [{ type: "mrkdwn", text }],
+      },
+    ],
+  };
 };
 
 const buildPayload = (requestId: string | undefined, data: Omit<AgentHookPayload, "requestId" | "timestamp">) => ({

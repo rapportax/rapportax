@@ -6,13 +6,24 @@ type SlackOpsPublisherOptions = {
   flushIntervalMs?: number;
   maxLines?: number;
   events: string[];
-  formatLine: (event: string, payload: unknown) => string;
+  formatLine: (event: string, payload: unknown) => SlackMessage;
 };
 
 type SlackApiResponse = {
   ok: boolean;
   error?: string;
   ts?: string;
+};
+
+type SlackBlock = {
+  type: string;
+  text?: { type: string; text: string };
+  elements?: Array<{ type: string; text: string }>;
+};
+
+type SlackMessage = {
+  text: string;
+  blocks?: SlackBlock[];
 };
 
 export const attachSlackOpsPublisher = (
@@ -26,13 +37,16 @@ export const attachSlackOpsPublisher = (
     return () => undefined;
   }
 
-  const buffer = new Map<string, string[]>();
+  const buffer = new Map<string, SlackMessage[]>();
   const threadTsByRequest = new Map<string, string>();
   const maxLines = options.maxLines ?? Number(process.env.SLACK_OPS_MAX_LINES ?? 20);
   const flushIntervalMs =
     options.flushIntervalMs ?? Number(process.env.SLACK_OPS_FLUSH_MS ?? 1500);
 
-  const postMessage = async (text: string, threadTs?: string): Promise<string | null> => {
+  const postMessage = async (
+    message: SlackMessage,
+    threadTs?: string,
+  ): Promise<string | null> => {
     try {
       const response = await fetch("https://slack.com/api/chat.postMessage", {
         method: "POST",
@@ -42,7 +56,8 @@ export const attachSlackOpsPublisher = (
         },
         body: JSON.stringify({
           channel,
-          text,
+          text: message.text,
+          blocks: message.blocks,
           thread_ts: threadTs,
           mrkdwn: true,
         }),
@@ -87,15 +102,33 @@ export const attachSlackOpsPublisher = (
           `requestId: \`${threadKey}\``,
           "thread: started",
         ].join("\n");
-        threadTs = await postMessage(header);
+        threadTs = await postMessage({ text: header });
         if (threadTs) {
           threadTsByRequest.set(threadKey, threadTs);
         }
       }
 
       for (const chunk of chunks) {
-        const text = chunk.join("\n");
-        await postMessage(text, threadTs ?? undefined);
+        const textParts: string[] = [];
+        const blocks: SlackBlock[] = [];
+        chunk.forEach((item) => {
+          textParts.push(item.text);
+          if (item.blocks && item.blocks.length > 0) {
+            blocks.push(...item.blocks);
+          } else {
+            blocks.push({
+              type: "section",
+              text: { type: "mrkdwn", text: item.text },
+            });
+          }
+        });
+        await postMessage(
+          {
+            text: textParts.join("\n"),
+            blocks: blocks.length ? blocks : undefined,
+          },
+          threadTs ?? undefined,
+        );
       }
     }
   };

@@ -49,7 +49,7 @@ const buildDynamicPrompt = (input: WorkflowInput): string => {
     : "- (none)";
 
   return [
-    "당신은 LLM 기반 오케스트레이터입니다. 필요한 에이전트를 도구/hand off로 호출하세요.",
+    "당신은 LLM 기반 오케스트레이터입니다. 필요한 에이전트를 handoff로 호출하세요.",
     "각 에이전트 출력은 JSON 스키마를 따릅니다. 필요한 경우 JSON을 해석해서 합성하세요.",
     `Task: ${input.task}`,
     `Context: ${input.context ?? "(없음)"}`,
@@ -92,72 +92,25 @@ export async function runMultiAgentWorkflow(
   const repoToolsForDev = createRepoTools(repoRoot, "Developer");
   const repoToolsForImpl = createRepoTools(repoRoot, "Implementation");
 
-  const poBase = createProductOwnerAgent();
-  const devResearchBase = createDeveloperResearchAgent(repoToolsForDevResearch);
-  const devBase = createDeveloperAgent(repoToolsForDev);
-  const implBase = createImplementationAgent(repoToolsForImpl);
-  const qaBase = createQaAgent();
+  const poAgent = createProductOwnerAgent();
+  const devResearchAgent = createDeveloperResearchAgent(repoToolsForDevResearch);
+  const devAgent = createDeveloperAgent(repoToolsForDev);
+  const implAgent = createImplementationAgent(repoToolsForImpl);
+  const qaAgent = createQaAgent();
+  const orchestratorAgent = createOrchestratorAgent();
 
-  const agentToolConfig = {
-    runConfig: {
-      model,
-      modelSettings: {
-        reasoning: { effort: "medium" },
-      },
-    },
-    runOptions: {
-      maxTurns,
-    },
-  };
-
-  const poTool = poBase.asTool({
-    toolName: "ask_po",
-    toolDescription:
-      "PO 에이전트에게 질문합니다. PO 스키마 JSON 문자열을 반환합니다.",
-    ...agentToolConfig,
-  });
-  const devResearchTool = devResearchBase.asTool({
-    toolName: "ask_dev_research",
-    toolDescription:
-      "DeveloperResearch 에이전트에게 조사 요청을 보냅니다. JSON 문자열을 반환합니다.",
-    ...agentToolConfig,
-  });
-  const devTool = devBase.asTool({
-    toolName: "ask_dev",
-    toolDescription:
-      "Developer 에이전트에게 구현 질문을 보냅니다. JSON 문자열을 반환합니다.",
-    ...agentToolConfig,
-  });
-  const implTool = implBase.asTool({
-    toolName: "ask_implementation",
-    toolDescription:
-      "Implementation 에이전트에게 코드 변경을 요청합니다. JSON 문자열을 반환합니다.",
-    ...agentToolConfig,
-  });
-  const qaTool = qaBase.asTool({
-    toolName: "ask_qa",
-    toolDescription:
-      "QA 에이전트에게 테스트 관점 질문을 보냅니다. JSON 문자열을 반환합니다.",
-    ...agentToolConfig,
-  });
-
-  const poAgent = createProductOwnerAgent([devTool, qaTool, devResearchTool]);
-  const devResearchAgent = createDeveloperResearchAgent([
-    ...repoToolsForDevResearch,
-    poTool,
-    devTool,
-  ]);
-  const devAgent = createDeveloperAgent([...repoToolsForDev, poTool, qaTool]);
-  const implAgent = createImplementationAgent([
-    ...repoToolsForImpl,
-    poTool,
-    devTool,
-  ]);
-  const qaAgent = createQaAgent([poTool, devTool]);
-  const orchestratorAgent = createOrchestratorAgent(
-    [poTool, devTool, qaTool, devResearchTool, implTool],
-    [poAgent, devResearchAgent, devAgent, implAgent, qaAgent],
-  );
+  orchestratorAgent.handoffs = [
+    poAgent,
+    devResearchAgent,
+    devAgent,
+    implAgent,
+    qaAgent,
+  ];
+  poAgent.handoffs = [orchestratorAgent];
+  devResearchAgent.handoffs = [orchestratorAgent];
+  devAgent.handoffs = [orchestratorAgent];
+  implAgent.handoffs = [orchestratorAgent];
+  qaAgent.handoffs = [orchestratorAgent];
 
   log("workflow.dynamic.start", { requestId, task: input.task });
 
