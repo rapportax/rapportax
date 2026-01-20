@@ -9,9 +9,11 @@ MVP는 ID/PW 인증과 두 가지 문제(개인 Pro plan, org tier/credit) 해�
 - 실제 어드민 API 엔드포인트와 권한 모델은 확정되면 `admin-api` 모듈에 반영
 - UI는 기본 CSS 기반
 
-## 환경 변수 (초기)
-- `DATABASE_URL` (없으면 `postgres://rapportax:rapportax@localhost:5432/rapportax`)
-- `ADMIN_API_BASE_URL` (mock 기준: `http://localhost:3000`)
+## 환경 변수
+- `OPENAI_API_KEY` (AI 플래너용)
+
+## 설정 상수
+- `DATABASE_URL`, `ADMIN_API_BASE_URL`, `OPENAI_MODEL`, `OPENAI_BASE_URL`는 코드 상수로 고정
  
 ## 관리자 계정 (초기)
 `admin_auth_users` 테이블에 직접 등록합니다.

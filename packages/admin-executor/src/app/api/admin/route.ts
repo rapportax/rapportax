@@ -8,6 +8,8 @@ import { verifyAdminToken } from "../../../auth/adminToken";
 
 export const runtime = "nodejs";
 
+const ADMIN_API_BASE_URL = "http://localhost:3000";
+
 interface AdminRequestBody {
   rawText: string;
   actor: Actor;
@@ -43,13 +45,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const adminBaseUrl = process.env.ADMIN_API_BASE_URL;
-  if (!adminBaseUrl) {
-    return NextResponse.json(
-      { ok: false, message: "missing_admin_api_config" },
-      { status: 500 },
-    );
-  }
+  const adminBaseUrl = ADMIN_API_BASE_URL;
 
   const authHeader = request.headers.get("authorization") ?? "";
   const tokenMatch = authHeader.match(/^Bearer\\s+(.+)$/i);

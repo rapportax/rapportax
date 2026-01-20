@@ -5,17 +5,13 @@ import { PostgresAdminExecRequestRepository, PostgresDecisionLogRepository } fro
 
 export const runtime = "nodejs";
 
+const ADMIN_API_BASE_URL = "http://localhost:3000";
+const OPENAI_MODEL = "gpt-5.2";
+const OPENAI_BASE_URL = "";
+
 interface CreateRequestBody {
   candidate: AdminExecCandidate;
   requestedByUserId: string;
-}
-
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`Missing required env: ${name}`);
-  }
-  return value;
 }
 
 function getBearerToken(request: Request): string | null {
@@ -41,25 +37,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, message: "unauthorized" }, { status: 401 });
   }
 
-  let adminApiBaseUrl: string;
-  let openaiModel: string;
-  let openaiBaseUrl: string | undefined;
-  try {
-    adminApiBaseUrl = requireEnv("ADMIN_API_BASE_URL");
-    openaiModel = process.env.OPENAI_MODEL ?? "gpt-5.2";
-    openaiBaseUrl = process.env.OPENAI_BASE_URL;
-  } catch (error) {
-    return NextResponse.json(
-      { ok: false, message: "missing_config", detail: String(error) },
-      { status: 500 },
-    );
-  }
-
   const adminExecService = new AdminExecService(
     {
-      adminApiBaseUrl,
-      openaiModel,
-      openaiBaseUrl,
+      adminApiBaseUrl: ADMIN_API_BASE_URL,
+      openaiModel: OPENAI_MODEL,
+      openaiBaseUrl: OPENAI_BASE_URL || undefined,
     },
     {
       requestRepository: new PostgresAdminExecRequestRepository(),

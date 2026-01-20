@@ -138,10 +138,11 @@ packages/admin-executor/
 ## 의존성/환경
 - Node.js + TypeScript
 - 기본 CSS
-- Slack API (slash command + interactive message)
 - 기존 어드민 API 인증 토큰/서비스 계정
 - Postgres (루트 docker-compose의 `postgres`와 연동)
 - 스키마: `sql/schema.sql`
+- OpenAI API Key (`OPENAI_API_KEY`)만 환경변수로 사용
+- `DATABASE_URL`, `ADMIN_API_BASE_URL`, `OPENAI_MODEL`, `OPENAI_BASE_URL`는 코드 상수로 고정
 
 ## 오픈 질문
 - 어드민 API의 실제 엔드포인트와 권한 모델은?
