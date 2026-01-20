@@ -84,10 +84,6 @@ interface WorkerDefinition {
 
 ## 디렉터리 구조
 ```
-
-## Admin 실행 분리
-- Admin 실행/인증/토큰 관리 및 AI 실행 플로우는 `admin-executor`로 이관
-- Obligation Bot은 Slack 인터페이스 + 후보 관리에만 집중
 packages/obligation-bot/
   src/
     agents/
