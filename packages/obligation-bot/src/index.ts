@@ -16,6 +16,7 @@ export * from "./slack/types";
 export * from "./slack/http-server";
 export * from "./slack/app";
 export * from "./slack/env";
+export * from "./di";
 export * from "./slack/socket-app";
 export * from "./service";
 export * from "./admin-exec/api";

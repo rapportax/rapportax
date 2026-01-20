@@ -1,102 +1,12 @@
-import { loadEnv } from "./env";
 import { App, LogLevel } from "@slack/bolt";
-import { NoopContextScanner, NoopDecisionAgent, NoopDoneAssessor, NoopRiskAgent } from "../agents/noop";
-import { OpenAIContextScanner, OpenAIDecisionAgent, OpenAIDoneAssessor, OpenAIRiskAgent } from "../agents/openai";
-import {
-  PostgresAdminExecRequestRepository,
-  PostgresAdminTokenRepository,
-  PostgresCandidateRepository,
-  PostgresClient,
-  PostgresDecisionLogRepository,
-} from "../storage/postgres";
-import { ObligationService } from "../service";
 import { publishAppHome } from "./publish";
-import { AdminExecService } from "../admin-exec/service";
 import { sendAdminApprovalRequest, sendAdminExecutionResult } from "./messages";
 import { buildAdminLoginModal, parseAdminLogin, ADMIN_LOGIN_VIEW_ID } from "./modals";
 import { issueAdminToken } from "../admin-exec/api";
-import { ExecutorService } from "../executor/service";
-import { createLocalWorkerRuntime } from "../workers/runtime";
-import { DEFAULT_WORKERS } from "../workers/registry";
-
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`Missing required env: ${name}`);
-  }
-  return value;
-}
+import { createSlackSocketAppContext } from "../di";
 
 export async function startSlackSocketApp(): Promise<void> {
-  loadEnv();
-  const signingSecret = requireEnv("SLACK_SIGNING_SECRET");
-  const botToken = requireEnv("SLACK_BOT_TOKEN");
-  const appToken = requireEnv("SLACK_APP_TOKEN");
-  const databaseUrl = requireEnv("DATABASE_URL");
-  const adminApiBaseUrl = requireEnv("ADMIN_API_BASE_URL");
-  const openaiApiKey = process.env.OPENAI_API_KEY;
-  const openaiModel = process.env.OPENAI_MODEL ?? "gpt-5.2";
-  const openaiBaseUrl = process.env.OPENAI_BASE_URL;
-  const workerModel = process.env.WORKER_MODEL;
-  const workerMaxTurnsRaw = process.env.WORKER_MAX_TURNS;
-  const workerRepoRoot = process.env.WORKER_REPO_ROOT;
-  const workerMaxTurns = workerMaxTurnsRaw ? Number(workerMaxTurnsRaw) : undefined;
-
-  const client = new PostgresClient({ connectionString: databaseUrl });
-  const candidateRepository = new PostgresCandidateRepository(client);
-  const decisionLogRepository = new PostgresDecisionLogRepository(client);
-  const adminExecRequestRepository = new PostgresAdminExecRequestRepository(client);
-  const adminTokenRepository = new PostgresAdminTokenRepository(client);
-
-  const adminExecService =
-    openaiApiKey
-      ? new AdminExecService(
-          {
-            adminApiBaseUrl,
-            openaiModel,
-            openaiBaseUrl,
-          },
-          { requestRepository: adminExecRequestRepository, decisionLogRepository },
-        )
-      : undefined;
-
-  const workerRuntime = openaiApiKey
-    ? createLocalWorkerRuntime({
-        model: workerModel ?? openaiModel,
-        maxTurns: workerMaxTurns && Number.isFinite(workerMaxTurns) ? workerMaxTurns : undefined,
-        repoRoot: workerRepoRoot,
-      })
-    : undefined;
-
-  const executorService = workerRuntime
-    ? new ExecutorService({
-        candidateRepository,
-        decisionLogRepository,
-        workerRuntime,
-        workers: DEFAULT_WORKERS,
-      })
-    : undefined;
-
-  const service = new ObligationService({
-    contextScanner: openaiApiKey
-      ? new OpenAIContextScanner({ model: openaiModel, baseURL: openaiBaseUrl })
-      : new NoopContextScanner(),
-    decisionAgent: openaiApiKey
-      ? new OpenAIDecisionAgent({ model: openaiModel, baseURL: openaiBaseUrl })
-      : new NoopDecisionAgent(),
-    doneAssessor: openaiApiKey
-      ? new OpenAIDoneAssessor({ model: openaiModel, baseURL: openaiBaseUrl })
-      : new NoopDoneAssessor(),
-    riskAgent: openaiApiKey
-      ? new OpenAIRiskAgent({ model: openaiModel, baseURL: openaiBaseUrl })
-      : new NoopRiskAgent(),
-    candidateRepository,
-    decisionLogRepository,
-    adminExecRequestRepository,
-    adminExecService,
-    adminTokenRepository,
-    executorService,
-  });
+  const { service, signingSecret, botToken, appToken, adminApiBaseUrl } = createSlackSocketAppContext();
 
   const app = new App({
     token: botToken,
