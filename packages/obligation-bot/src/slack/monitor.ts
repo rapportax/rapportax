@@ -97,11 +97,7 @@ export const attachSlackOpsPublisher = (
       const threadKey = requestId === "unknown" ? null : requestId;
       let threadTs = threadKey ? threadTsByRequest.get(threadKey) ?? null : null;
       if (threadKey && !threadTs) {
-        const header = [
-          ":satellite: *Agent Ops*",
-          `requestId: \`${threadKey}\``,
-          "thread: started",
-        ].join("\n");
+        const header = ":satellite: *새로운 작업을 진행합니다*";
         threadTs = await postMessage({ text: header });
         if (threadTs) {
           threadTsByRequest.set(threadKey, threadTs);
