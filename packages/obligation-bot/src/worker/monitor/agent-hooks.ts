@@ -5,6 +5,7 @@ import type { Agent, RunContext, Runner, Tool } from "@openai/agents";
 import { attachSlackOpsPublisher } from "../../slack/monitor";
 
 export type AgentHookEvent =
+  | "workflow_start"
   | "agent_start"
   | "agent_end"
   | "agent_handoff"
@@ -15,6 +16,8 @@ export type AgentHookEvent =
 export type AgentHookPayload = {
   requestId?: string;
   timestamp: string;
+  task?: string;
+  requestedByUserId?: string;
   agent?: string;
   nextAgent?: string;
   tool?: string;
@@ -32,6 +35,7 @@ export const agentEventEmitter = new EventEmitter2({
 });
 
 const AGENT_HOOK_EVENTS: AgentHookEvent[] = [
+  "workflow_start",
   "agent_start",
   "agent_end",
   "agent_handoff",
@@ -59,6 +63,7 @@ const truncate = (value: string, max = 800): string => {
 };
 
 const EVENT_EMOJI: Record<AgentHookEvent, string> = {
+  workflow_start: "🛰️",
   agent_start: "🟢",
   agent_end: "✅",
   agent_handoff: "➡️",
@@ -121,6 +126,7 @@ const formatJsonPreview = (value: string, max = 600): string => {
 };
 
 const EVENT_LABEL: Record<AgentHookEvent, string> = {
+  workflow_start: "워크플로우 시작",
   agent_start: "에이전트 시작",
   agent_end: "에이전트 종료",
   agent_handoff: "핸드오프",
@@ -138,6 +144,13 @@ const formatSlackEventLine = (
   username?: string;
   icon_emoji?: string;
 } => {
+  if (event === "workflow_start") {
+    const triggerLabel = payload.requestedByUserId ? `<@${payload.requestedByUserId}>` : "누군가";
+    const taskLabel = payload.task ? `*${payload.task}*` : "작업";
+    return {
+      text: `🛰️ *워크플로우 시작* ${triggerLabel} 요청 - ${taskLabel}`,
+    };
+  }
   const emoji = EVENT_EMOJI[event] ?? "🧾";
   const parts: string[] = [];
   const toolKey = payload.toolName ?? payload.tool ?? "";

@@ -26,11 +26,23 @@ export function buildAppHomeView(
   for (const candidate of candidates) {
     blocks.push({
       type: "section",
-      text: {
-        type: "mrkdwn",
-        text: `*${candidate.title}*`,
-      },
+      text: { type: "mrkdwn", text: `*${candidate.title}*` },
     });
+    blocks.push({
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text: `source: ${candidate.source} · risk: ${candidate.riskScore}`,
+        },
+      ],
+    });
+    if (candidate.inferredReason) {
+      blocks.push({
+        type: "context",
+        elements: [{ type: "mrkdwn", text: candidate.inferredReason }],
+      });
+    }
     blocks.push({
       type: "actions",
       elements: [
@@ -56,6 +68,7 @@ export function buildAppHomeView(
         },
       ],
     });
+    blocks.push({ type: "divider" });
   }
 
   return { type: "home", blocks };

@@ -53,6 +53,7 @@ export function createLocalWorkerRuntime(config: LocalWorkerRuntimeConfig = {}):
             context: buildContextLines(input),
             constraints: ["개인정보 최소화", "자동 생성 금지", "사람 승인 절차 준수"],
             signals: input.assignment.rationale,
+            requestedByUserId: input.requestedByUserId,
           },
           {
             model: config.model,

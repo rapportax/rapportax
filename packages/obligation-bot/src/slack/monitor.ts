@@ -41,6 +41,7 @@ export const attachSlackOpsPublisher = (
 
   const buffer = new Map<string, SlackMessage[]>();
   const threadTsByRequest = new Map<string, string>();
+  const requestMetaByRequest = new Map<string, { task?: string; requestedByUserId?: string }>();
   const maxLines = options.maxLines ?? Number(process.env.SLACK_OPS_MAX_LINES ?? 20);
   const flushIntervalMs =
     options.flushIntervalMs ?? Number(process.env.SLACK_OPS_FLUSH_MS ?? 1500);
@@ -120,10 +121,17 @@ export const attachSlackOpsPublisher = (
       const threadKey = requestId === "unknown" ? null : requestId;
       let threadTs = threadKey ? threadTsByRequest.get(threadKey) ?? null : null;
       if (threadKey && !threadTs) {
-        const header = ":satellite: *새로운 작업을 진행합니다*";
+        const meta = requestMetaByRequest.get(threadKey);
+        const triggerLabel = meta?.requestedByUserId ? `<@${meta.requestedByUserId}>` : "누군가";
+        const taskLabel = meta?.task ? `*${meta.task}*` : "작업";
+        const header =
+          meta?.task || meta?.requestedByUserId
+            ? `:satellite: *새로운 작업을 시작합니다*\n${triggerLabel} 요청: ${taskLabel}`
+            : ":satellite: *새로운 작업을 시작합니다*";
         threadTs = await postMessage({ text: header });
         if (threadTs) {
           threadTsByRequest.set(threadKey, threadTs);
+          requestMetaByRequest.delete(threadKey);
         }
       }
 
@@ -164,8 +172,15 @@ export const attachSlackOpsPublisher = (
 
   options.events.forEach((event) => {
     const handler = (payload: unknown) => {
-      const record = payload as { requestId?: string };
+      const record = payload as { requestId?: string; task?: string; requestedByUserId?: string };
       const requestId = record?.requestId ?? "unknown";
+      if (event === "workflow_start") {
+        requestMetaByRequest.set(requestId, {
+          task: record.task,
+          requestedByUserId: record.requestedByUserId,
+        });
+        return;
+      }
       const lines = buffer.get(requestId) ?? [];
       lines.push(options.formatLine(event, payload));
       buffer.set(requestId, lines);

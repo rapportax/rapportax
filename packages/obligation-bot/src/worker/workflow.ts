@@ -26,6 +26,7 @@ export interface WorkflowInput {
   context?: string;
   constraints?: string[];
   signals?: string[];
+  requestedByUserId?: string;
 }
 
 export interface WorkflowOptions {
@@ -178,6 +179,12 @@ export async function runMultiAgentWorkflow(
   const detachLogger = attachAgentHookLogger(hookEmitter, {
     requestId,
     logPath: options.eventLogPath,
+  });
+  hookEmitter.emit("workflow_start", {
+    requestId,
+    timestamp: new Date().toISOString(),
+    task: input.task,
+    requestedByUserId: input.requestedByUserId,
   });
   const result = await runner.run(
     orchestratorAgent,
