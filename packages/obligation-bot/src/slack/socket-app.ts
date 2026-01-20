@@ -1,12 +1,37 @@
 import { App, LogLevel } from "@slack/bolt";
 import { publishAppHome } from "./publish";
+import { parseSlackActionId } from "./actions";
 import { createSlackSocketAppContext } from "../di";
 import { startApiServer } from "../api/server";
+import { WorkflowVisualizationService, workflowVizEvents } from "../workflow-viz";
+import { normalizeSlackEvent } from "../normalize/slack";
 
 export async function startSlackSocketApp(): Promise<void> {
   const { service, signingSecret, botToken, appToken } = createSlackSocketAppContext();
 
   void startApiServer(service);
+
+  const workflowViz = new WorkflowVisualizationService({ botToken });
+
+  workflowVizEvents.on("session:start", (session) => {
+    workflowViz.startSession(session).catch((err) => {
+      console.error("[workflow-viz] Error starting session:", err);
+    });
+  });
+
+  workflowVizEvents.on("session:end", ({ sessionId }) => {
+    workflowViz.endSession(sessionId).catch((err) => {
+      console.error("[workflow-viz] Error ending session:", err);
+    });
+  });
+
+  workflowVizEvents.on("workflow:event", (event) => {
+    workflowViz.handleEvent(event).catch((err) => {
+      console.error("[workflow-viz] Error handling event:", err);
+    });
+  });
+
+  console.log("[workflow-viz] Service initialized and EventEmitter connected");
 
   const app = new App({
     token: botToken,
@@ -24,7 +49,7 @@ export async function startSlackSocketApp(): Promise<void> {
 
   app.event("message", async ({ event }) => {
     console.log("[slack] message", "type" in event ? event.type : "unknown");
-    await service.handleSlackEvent({
+    const context = normalizeSlackEvent({
       event_id: "socket-message",
       event_time: Math.floor(Date.now() / 1000),
       type: "event_callback",
@@ -37,11 +62,12 @@ export async function startSlackSocketApp(): Promise<void> {
         thread_ts: "thread_ts" in event ? event.thread_ts : undefined,
       },
     });
+    await service.runDecisionPipeline(context);
   });
 
   app.event("app_mention", async ({ event }) => {
     console.log("[slack] app_mention", event.user);
-    await service.handleSlackEvent({
+    const context = normalizeSlackEvent({
       event_id: "socket-mention",
       event_time: Math.floor(Date.now() / 1000),
       type: "event_callback",
@@ -54,6 +80,7 @@ export async function startSlackSocketApp(): Promise<void> {
         thread_ts: event.thread_ts,
       },
     });
+    await service.runDecisionPipeline(context);
   });
 
   app.action(/^(execute_|hold_|ignore_)/, async ({ ack, body }) => {
@@ -63,7 +90,17 @@ export async function startSlackSocketApp(): Promise<void> {
     if (action && "action_id" in action && "value" in action) {
       const actionId = String(action.action_id);
       const value = String(action.value ?? "");
-      await service.handleSlackAction(actionId, value, body.user?.id);
+      const parsed = parseSlackActionId(actionId, value);
+      if (parsed?.action === "EXECUTE" && parsed.candidateId) {
+        await service.executeCandidate(parsed.candidateId, body.user?.id);
+      } else if (parsed?.candidateId && parsed.status) {
+        await service.recordDecision(
+          parsed.candidateId,
+          parsed.status,
+          parsed.action,
+          `Slack action: ${parsed.action}`,
+        );
+      }
     }
     if (body.user?.id) {
       const candidates = await service.listCandidates();

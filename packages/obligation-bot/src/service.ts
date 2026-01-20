@@ -1,10 +1,8 @@
 import { randomUUID } from "crypto";
-import type { SlackEventEnvelope, SourceType, TodoCandidate } from "./types";
-import type { CandidateRepository, DecisionLogRepository } from "./storage/interfaces";
+import type { CandidateResult, ContextObject, DecisionLog, SourceType, TodoCandidate } from "./types";
+import type { CandidateRepository, CandidateStatus, DecisionLogRepository } from "./storage/interfaces";
 import type { ContextScannerAgent, DecisionAgent, DoneAssessor, RiskAgent } from "./agents/interfaces";
-import { normalizeSlackEvent } from "./normalize/slack";
 import { ObligationPipeline } from "./pipeline";
-import { parseSlackActionId } from "./slack/actions";
 import type { ExecutorResult, ExecutorService } from "./executor/service";
 
 export interface ObligationServiceDeps {
@@ -31,9 +29,8 @@ export class ObligationService {
     });
   }
 
-  async handleSlackEvent(envelope: SlackEventEnvelope): Promise<void> {
-    const context = normalizeSlackEvent(envelope);
-    await this.pipeline.run(context);
+  async runDecisionPipeline(context: ContextObject): Promise<CandidateResult> {
+    return this.pipeline.run(context);
   }
 
   async listCandidates(): Promise<TodoCandidate[]> {
@@ -71,29 +68,22 @@ export class ObligationService {
     return candidate;
   }
 
-  async handleSlackAction(actionId: string, value: string, requestedByUserId?: string): Promise<void> {
-    const parsed = parseSlackActionId(actionId, value);
-    if (!parsed) {
-      return;
-    }
-
-    if (parsed.action === "EXECUTE" && parsed.candidateId && this.deps.executorService) {
-      await this.deps.executorService.executeCandidate(parsed.candidateId, requestedByUserId);
-      return;
-    }
-
-    if (parsed.candidateId && parsed.status) {
-      await this.deps.candidateRepository.updateStatus(parsed.candidateId, parsed.status);
-      await this.deps.decisionLogRepository.append(
-        {
-          actor: "HUMAN",
-          action: parsed.action,
-          reason: `Slack action: ${parsed.action}`,
-          timestamp: new Date(),
-        },
-        parsed.candidateId,
-      );
-    }
+  async recordDecision(
+    candidateId: string,
+    status: CandidateStatus,
+    action: DecisionLog["action"],
+    reason: string,
+  ): Promise<void> {
+    await this.deps.candidateRepository.updateStatus(candidateId, status);
+    await this.deps.decisionLogRepository.append(
+      {
+        actor: "HUMAN",
+        action,
+        reason,
+        timestamp: new Date(),
+      },
+      candidateId,
+    );
   }
 
   async executeCandidate(candidateId: string, requestedByUserId?: string): Promise<ExecutorResult> {
