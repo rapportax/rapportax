@@ -10,6 +10,7 @@ import { normalizeSlackEvent } from "./normalize/slack";
 import { ObligationPipeline } from "./pipeline";
 import { parseSlackActionId } from "./slack/actions";
 import type { AdminExecService } from "./admin-exec/service";
+import type { ExecutorService } from "./executor/service";
 
 export interface ObligationServiceDeps {
   contextScanner: ContextScannerAgent;
@@ -21,6 +22,7 @@ export interface ObligationServiceDeps {
   adminExecRequestRepository?: AdminExecRequestRepository;
   adminExecService?: AdminExecService;
   adminTokenRepository?: AdminTokenRepository;
+  executorService?: ExecutorService;
 }
 
 export class ObligationService {
@@ -81,7 +83,7 @@ export class ObligationService {
     await this.deps.adminTokenRepository.upsert(userId, token);
   }
 
-  async handleSlackAction(actionId: string, value: string): Promise<void> {
+  async handleSlackAction(actionId: string, value: string, requestedByUserId?: string): Promise<void> {
     const parsed = parseSlackActionId(actionId, value);
     if (!parsed) {
       return;
@@ -94,6 +96,11 @@ export class ObligationService {
       return;
     }
     if (parsed.action === "ADMIN_REJECT" && parsed.requestId) {
+      return;
+    }
+
+    if (parsed.action === "EXECUTE" && parsed.candidateId && this.deps.executorService) {
+      await this.deps.executorService.executeCandidate(parsed.candidateId, requestedByUserId);
       return;
     }
 

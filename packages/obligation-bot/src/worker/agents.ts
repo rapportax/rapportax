@@ -1,0 +1,136 @@
+import { Agent } from "@openai/agents";
+import type { Handoff, Tool } from "@openai/agents";
+import {
+  DevOutputSchema,
+  DevResearchOutputSchema,
+  ImplementationOutputSchema,
+  OrchestratorOutputSchema,
+  PoOutputSchema,
+  QaOutputSchema,
+} from "./schemas";
+
+const basePolicy = [
+  "당신은 오케스트레이터가 조정하는 멀티 에이전트 워크플로의 구성원입니다.",
+  "다른 에이전트를 직접 호출하지 말고, 오케스트레이터의 요청에만 응답하세요.",
+  "제공된 스키마에 맞는 유효한 JSON만 반환하세요. 마크다운 금지.",
+  "배열 항목은 간결한 불릿 스타일 문장으로 작성하세요.",
+  "모든 응답은 한국어로 작성하세요.",
+].join("\n");
+
+export const createProductOwnerAgent = (
+  tools: Tool[] = [],
+  handoffs: Array<Agent<any, any> | Handoff<any, any>> = [],
+) =>
+  Agent.create({
+    name: "PO",
+    instructions: [
+      basePolicy,
+      "역할: PO (Product Owner).",
+      "사용자 가치, 범위 명확화, 수용 기준에 집중하세요.",
+      "정보가 부족하면 openQuestions에 명시하세요.",
+      "현재 스펙 이해를 위해 필요한 질문은 questionsForDev에 정리하세요.",
+    ].join("\n"),
+    handoffDescription: "요구사항과 수용 기준을 정리하는 PO 에이전트",
+    tools,
+    handoffs,
+    outputType: PoOutputSchema,
+  });
+
+export const createDeveloperAgent = (
+  tools: Tool[] = [],
+  handoffs: Array<Agent<any, any> | Handoff<any, any>> = [],
+) =>
+  Agent.create({
+    name: "Developer",
+    instructions: [
+      basePolicy,
+      "역할: Senior Developer.",
+      "요구사항을 구체적인 구현 계획으로 전환하세요.",
+      "리스크와 검증 단계를 명시하세요.",
+      "questionsForDev에 대한 답변은 answersForPo에 정리하세요.",
+      "필요 시 리포지토리 도구를 사용해 현재 코드를 확인하세요.",
+      "파일 경로는 상대 경로로 명시하세요.",
+    ].join("\n"),
+    tools,
+    handoffs,
+    handoffDescription: "구현 계획과 리스크를 정리하는 개발 에이전트",
+    outputType: DevOutputSchema,
+  });
+
+export const createDeveloperResearchAgent = (
+  tools: Tool[] = [],
+  handoffs: Array<Agent<any, any> | Handoff<any, any>> = [],
+) =>
+  Agent.create({
+    name: "DeveloperResearch",
+    instructions: [
+      basePolicy,
+      "역할: Developer Research.",
+      "PO가 요청한 스펙 질문에 답하기 위해 현재 코드/설정을 조사하세요.",
+      "리포지토리 도구를 사용해 근거를 확보하세요.",
+      "answersForPo에는 질문에 대한 답을, codeFindings에는 발견 사항을 정리하세요.",
+    ].join("\n"),
+    tools,
+    handoffs,
+    handoffDescription: "코드/스펙 조사를 수행하는 개발 리서치 에이전트",
+    outputType: DevResearchOutputSchema,
+  });
+
+export const createImplementationAgent = (
+  tools: Tool[] = [],
+  handoffs: Array<Agent<any, any> | Handoff<any, any>> = [],
+) =>
+  Agent.create({
+    name: "Implementation",
+    instructions: [
+      basePolicy,
+      "역할: Implementation Engineer.",
+      "Developer 계획을 바탕으로 실제 코드 변경을 수행하세요.",
+      "필요 시 리포지토리 도구를 사용해 코드를 읽고 apply_repo_patch로 변경하세요.",
+      "패치를 적용하기 전에 dryRun을 수행해 오류를 방지하세요.",
+      "변경 사항 요약, 변경 파일, 적용 패치 요약을 출력하세요.",
+    ].join("\n"),
+    tools,
+    handoffs,
+    handoffDescription: "실제 코드 변경을 수행하는 구현 에이전트",
+    outputType: ImplementationOutputSchema,
+  });
+
+export const createQaAgent = (
+  tools: Tool[] = [],
+  handoffs: Array<Agent<any, any> | Handoff<any, any>> = [],
+) =>
+  Agent.create({
+    name: "QA",
+    instructions: [
+      basePolicy,
+      "역할: QA Engineer.",
+      "엣지 케이스와 품질 게이트를 포함한 현실적인 테스트 계획을 제시하세요.",
+      "과도한 나열보다 신뢰도 높은 테스트를 우선하세요.",
+    ].join("\n"),
+    tools,
+    handoffs,
+    handoffDescription: "테스트 전략과 품질 게이트를 제안하는 QA 에이전트",
+    outputType: QaOutputSchema,
+  });
+
+export const createOrchestratorAgent = (
+  tools: Tool[] = [],
+  handoffs: Array<Agent<any, any> | Handoff<any, any>> = [],
+) =>
+  Agent.create({
+    name: "Orchestrator",
+    instructions: [
+      basePolicy,
+      "역할: Orchestrator.",
+      "필요한 에이전트를 도구로 호출하거나 handoff로 전환해 정보를 수집하세요.",
+      "PO/Developer/QA/Implementation 결과를 종합해 하나의 결정으로 합성하세요.",
+      "결정 값: PROCEED, NEEDS_INPUT, BLOCKED.",
+      "간결한 근거와 실행 가능한 다음 단계를 제시하세요.",
+      "질문은 최소화하고, 중복 호출을 피하세요.",
+    ].join("\n"),
+    tools,
+    handoffs,
+    handoffDescription: "에이전트 호출을 조정해 최종 결정을 내리는 오케스트레이터",
+    outputType: OrchestratorOutputSchema,
+  });

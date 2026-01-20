@@ -15,6 +15,9 @@ import { AdminExecService } from "../admin-exec/service";
 import { sendAdminApprovalRequest, sendAdminExecutionResult } from "./messages";
 import { buildAdminLoginModal, parseAdminLogin, ADMIN_LOGIN_VIEW_ID } from "./modals";
 import { issueAdminToken } from "../admin-exec/api";
+import { ExecutorService } from "../executor/service";
+import { createLocalWorkerRuntime } from "../workers/runtime";
+import { DEFAULT_WORKERS } from "../workers/registry";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -34,6 +37,10 @@ export async function startSlackSocketApp(): Promise<void> {
   const openaiApiKey = process.env.OPENAI_API_KEY;
   const openaiModel = process.env.OPENAI_MODEL ?? "gpt-5.2";
   const openaiBaseUrl = process.env.OPENAI_BASE_URL;
+  const workerModel = process.env.WORKER_MODEL;
+  const workerMaxTurnsRaw = process.env.WORKER_MAX_TURNS;
+  const workerRepoRoot = process.env.WORKER_REPO_ROOT;
+  const workerMaxTurns = workerMaxTurnsRaw ? Number(workerMaxTurnsRaw) : undefined;
 
   const client = new PostgresClient({ connectionString: databaseUrl });
   const candidateRepository = new PostgresCandidateRepository(client);
@@ -53,6 +60,23 @@ export async function startSlackSocketApp(): Promise<void> {
         )
       : undefined;
 
+  const workerRuntime = openaiApiKey
+    ? createLocalWorkerRuntime({
+        model: workerModel ?? openaiModel,
+        maxTurns: workerMaxTurns && Number.isFinite(workerMaxTurns) ? workerMaxTurns : undefined,
+        repoRoot: workerRepoRoot,
+      })
+    : undefined;
+
+  const executorService = workerRuntime
+    ? new ExecutorService({
+        candidateRepository,
+        decisionLogRepository,
+        workerRuntime,
+        workers: DEFAULT_WORKERS,
+      })
+    : undefined;
+
   const service = new ObligationService({
     contextScanner: openaiApiKey
       ? new OpenAIContextScanner({ model: openaiModel, baseURL: openaiBaseUrl })
@@ -71,6 +95,7 @@ export async function startSlackSocketApp(): Promise<void> {
     adminExecRequestRepository,
     adminExecService,
     adminTokenRepository,
+    executorService,
   });
 
   const app = new App({
@@ -171,7 +196,7 @@ export async function startSlackSocketApp(): Promise<void> {
           await sendAdminExecutionResult({ botToken }, body.user.id, "Admin exec rejected", false);
         }
       } else {
-        await service.handleSlackAction(actionId, value);
+        await service.handleSlackAction(actionId, value, body.user?.id);
       }
     }
     if (body.user?.id) {
