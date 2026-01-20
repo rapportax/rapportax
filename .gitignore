@@ -12,6 +12,7 @@ dist/
 pnpm-debug.log
 npm-debug.log
 yarn-error.log
+*.jsonl
 
 # env
 .env

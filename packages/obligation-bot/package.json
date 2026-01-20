@@ -13,6 +13,7 @@
     "@openai/agents": "^0.4.1",
     "@slack/bolt": "^3.19.1",
     "dotenv": "^16.4.5",
+    "eventemitter2": "^6.4.9",
     "express": "^4.19.2",
     "openai": "^4.98.0",
     "pg": "^8.11.5",

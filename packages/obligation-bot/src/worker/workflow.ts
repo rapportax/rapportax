@@ -1,5 +1,6 @@
 import { Runner } from "@openai/agents";
 import { randomUUID } from "crypto";
+import type { EventEmitter2 } from "eventemitter2";
 import {
   createDeveloperAgent,
   createDeveloperResearchAgent,
@@ -13,6 +14,7 @@ import {
   OrchestratorOutputSchema,
 } from "./schemas";
 import { createRepoTools } from "./tools";
+import { agentEventEmitter, attachAgentHookLogger, attachAgentHooks } from "./monitor/agent-hooks";
 
 export interface WorkflowInput {
   task: string;
@@ -27,6 +29,8 @@ export interface WorkflowOptions {
   runner?: Runner;
   repoRoot?: string;
   logger?: (message: string, data?: Record<string, unknown>) => void;
+  eventEmitter?: EventEmitter2;
+  eventLogPath?: string;
 }
 
 export interface WorkflowResult {
@@ -157,11 +161,20 @@ export async function runMultiAgentWorkflow(
 
   log("workflow.dynamic.start", { requestId, task: input.task });
 
+  const hookEmitter = options.eventEmitter ?? agentEventEmitter;
+  const detachHooks = attachAgentHooks(runner, hookEmitter, requestId);
+  const detachLogger = attachAgentHookLogger(hookEmitter, {
+    requestId,
+    logPath: options.eventLogPath,
+  });
   const result = await runner.run(
     orchestratorAgent,
     buildDynamicPrompt(input),
     { maxTurns },
-  );
+  ).finally(() => {
+    detachHooks();
+    detachLogger();
+  });
 
   const lastAgent = result.lastAgent?.name ?? null;
   let orchestrator: OrchestratorOutput | undefined;
