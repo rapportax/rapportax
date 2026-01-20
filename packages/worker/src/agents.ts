@@ -1,6 +1,9 @@
 import { Agent } from "@openai/agents";
+import type { Tool } from "@openai/agents";
 import {
   DevOutputSchema,
+  DevResearchOutputSchema,
+  ImplementationOutputSchema,
   OrchestratorOutputSchema,
   PoOutputSchema,
   QaOutputSchema,
@@ -14,47 +17,85 @@ const basePolicy = [
   "모든 응답은 한국어로 작성하세요.",
 ].join("\n");
 
-export const productOwnerAgent = Agent.create({
-  name: "PO",
-  instructions: [
-    basePolicy,
-    "역할: PO (Product Owner).",
-    "사용자 가치, 범위 명확화, 수용 기준에 집중하세요.",
-    "정보가 부족하면 openQuestions에 명시하세요.",
-  ].join("\n"),
-  outputType: PoOutputSchema,
-});
+export const createProductOwnerAgent = () =>
+  Agent.create({
+    name: "PO",
+    instructions: [
+      basePolicy,
+      "역할: PO (Product Owner).",
+      "사용자 가치, 범위 명확화, 수용 기준에 집중하세요.",
+      "정보가 부족하면 openQuestions에 명시하세요.",
+      "현재 스펙 이해를 위해 필요한 질문은 questionsForDev에 정리하세요.",
+    ].join("\n"),
+    outputType: PoOutputSchema,
+  });
 
-export const developerAgent = Agent.create({
-  name: "Developer",
-  instructions: [
-    basePolicy,
-    "역할: Senior Developer.",
-    "요구사항을 구체적인 구현 계획으로 전환하세요.",
-    "리스크와 검증 단계를 명시하세요.",
-  ].join("\n"),
-  outputType: DevOutputSchema,
-});
+export const createDeveloperAgent = (tools: Tool[] = []) =>
+  Agent.create({
+    name: "Developer",
+    instructions: [
+      basePolicy,
+      "역할: Senior Developer.",
+      "요구사항을 구체적인 구현 계획으로 전환하세요.",
+      "리스크와 검증 단계를 명시하세요.",
+      "questionsForDev에 대한 답변은 answersForPo에 정리하세요.",
+      "필요 시 리포지토리 도구를 사용해 현재 코드를 확인하세요.",
+      "파일 경로는 상대 경로로 명시하세요.",
+    ].join("\n"),
+    tools,
+    outputType: DevOutputSchema,
+  });
 
-export const qaAgent = Agent.create({
-  name: "QA",
-  instructions: [
-    basePolicy,
-    "역할: QA Engineer.",
-    "엣지 케이스와 품질 게이트를 포함한 현실적인 테스트 계획을 제시하세요.",
-    "과도한 나열보다 신뢰도 높은 테스트를 우선하세요.",
-  ].join("\n"),
-  outputType: QaOutputSchema,
-});
+export const createDeveloperResearchAgent = (tools: Tool[] = []) =>
+  Agent.create({
+    name: "DeveloperResearch",
+    instructions: [
+      basePolicy,
+      "역할: Developer Research.",
+      "PO가 요청한 스펙 질문에 답하기 위해 현재 코드/설정을 조사하세요.",
+      "리포지토리 도구를 사용해 근거를 확보하세요.",
+      "answersForPo에는 질문에 대한 답을, codeFindings에는 발견 사항을 정리하세요.",
+    ].join("\n"),
+    tools,
+    outputType: DevResearchOutputSchema,
+  });
 
-export const orchestratorAgent = Agent.create({
-  name: "Orchestrator",
-  instructions: [
-    basePolicy,
-    "역할: Orchestrator.",
-    "PO/Developer/QA 출력물을 하나의 결정으로 합성하세요.",
-    "결정 값: PROCEED, NEEDS_INPUT, BLOCKED.",
-    "간결한 근거와 실행 가능한 다음 단계를 제시하세요.",
-  ].join("\n"),
-  outputType: OrchestratorOutputSchema,
-});
+export const createImplementationAgent = (tools: Tool[] = []) =>
+  Agent.create({
+    name: "Implementation",
+    instructions: [
+      basePolicy,
+      "역할: Implementation Engineer.",
+      "Developer 계획을 바탕으로 실제 코드 변경을 수행하세요.",
+      "필요 시 리포지토리 도구를 사용해 코드를 읽고 apply_repo_patch로 변경하세요.",
+      "패치를 적용하기 전에 dryRun을 수행해 오류를 방지하세요.",
+      "변경 사항 요약, 변경 파일, 적용 패치 요약을 출력하세요.",
+    ].join("\n"),
+    tools,
+    outputType: ImplementationOutputSchema,
+  });
+
+export const createQaAgent = () =>
+  Agent.create({
+    name: "QA",
+    instructions: [
+      basePolicy,
+      "역할: QA Engineer.",
+      "엣지 케이스와 품질 게이트를 포함한 현실적인 테스트 계획을 제시하세요.",
+      "과도한 나열보다 신뢰도 높은 테스트를 우선하세요.",
+    ].join("\n"),
+    outputType: QaOutputSchema,
+  });
+
+export const createOrchestratorAgent = () =>
+  Agent.create({
+    name: "Orchestrator",
+    instructions: [
+      basePolicy,
+      "역할: Orchestrator.",
+      "PO/Developer/QA 출력물을 하나의 결정으로 합성하세요.",
+      "결정 값: PROCEED, NEEDS_INPUT, BLOCKED.",
+      "간결한 근거와 실행 가능한 다음 단계를 제시하세요.",
+    ].join("\n"),
+    outputType: OrchestratorOutputSchema,
+  });

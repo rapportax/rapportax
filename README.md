@@ -29,3 +29,12 @@ const result = await runMultiAgentWorkflow({
 
 console.log(result.synthesis);
 ```
+
+## 에이전트 모니터 화면
+로컬 로그를 기반으로 에이전트 실행 상태를 확인할 수 있습니다.
+
+```bash
+pnpm --filter @rapportax/worker monitor
+```
+
+브라우저에서 `http://localhost:8787`에 접속하면 실시간 이벤트가 표시됩니다.

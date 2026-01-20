@@ -1,0 +1,256 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@600;700&display=swap");
+
+:root {
+  --bg: #0f1115;
+  --panel: #161b22;
+  --panel-2: #1d2430;
+  --text: #eef1f6;
+  --muted: #98a2b3;
+  --accent: #ff6b35;
+  --accent-2: #20c997;
+  --shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: radial-gradient(1200px 600px at 15% 10%, #222538 0%, transparent 60%),
+    radial-gradient(900px 500px at 80% 10%, #2b1e1a 0%, transparent 55%),
+    var(--bg);
+  color: var(--text);
+  font-family: "Space Grotesk", "Apple SD Gothic Neo", sans-serif;
+  min-height: 100vh;
+}
+
+.bg-glow {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(120deg, rgba(255, 107, 53, 0.1), rgba(32, 201, 151, 0.08));
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.topbar {
+  padding: 40px 64px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0 0 12px;
+}
+
+h1 {
+  font-family: "Syne", "Space Grotesk", sans-serif;
+  font-size: 42px;
+  margin: 0 0 10px;
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--muted);
+}
+
+.status-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--panel);
+  padding: 14px 18px;
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+}
+
+.status-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent-2);
+  box-shadow: 0 0 12px rgba(32, 201, 151, 0.6);
+}
+
+.status-label {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0;
+}
+
+.status-value {
+  font-size: 16px;
+  margin: 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(280px, 1fr);
+  gap: 24px;
+  padding: 20px 64px 64px;
+}
+
+.panel {
+  background: var(--panel);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.panel.wide {
+  grid-column: 1 / -1;
+}
+
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.panel h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.badge {
+  background: var(--panel-2);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+}
+
+.badge.subtle {
+  color: var(--muted);
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.metric {
+  background: var(--panel-2);
+  padding: 14px;
+  border-radius: 14px;
+}
+
+.metric p {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.metric h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.timeline-item {
+  background: #0f141c;
+  border-left: 3px solid var(--accent);
+  padding: 12px 14px;
+  border-radius: 12px;
+}
+
+.timeline-item strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+
+.timeline-item span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.agent-lane {
+  display: grid;
+  gap: 12px;
+}
+
+.agent-row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 12px;
+  align-items: center;
+}
+
+.agent-tag {
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.agent-bar {
+  background: #0f141c;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.agent-progress {
+  height: 10px;
+  width: 0;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  transition: width 0.6s ease;
+}
+
+.log {
+  font-family: "JetBrains Mono", "SFMono-Regular", monospace;
+  background: #0b0f14;
+  border-radius: 16px;
+  padding: 16px;
+  height: 280px;
+  overflow: auto;
+  display: grid;
+  gap: 12px;
+}
+
+.log-entry {
+  display: grid;
+  gap: 6px;
+}
+
+.log-entry code {
+  color: #c7d0dd;
+  font-size: 12px;
+}
+
+.log-entry .meta {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+@media (max-width: 1024px) {
+  .topbar,
+  .grid {
+    padding: 24px;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .metrics {
+    grid-template-columns: 1fr;
+  }
+}

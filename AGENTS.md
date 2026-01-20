@@ -25,6 +25,7 @@ Input Sources -> Event Normalizer -> Multi-Agent Layer -> Decision Agent -> TODO
 - Orchestrator Agent: 워크플로 중앙 조정, 에이전트 응답 합성 및 최종 결정.
 - PO Agent: 업무 범위/목표/수용 기준 정의.
 - Developer Agent: 구현 계획, 리스크, 검증 시나리오 제안.
+- Implementation Agent: 코드 변경 적용 및 변경 내역 기록.
 - QA Agent: 테스트 계획, 엣지 케이스, 품질 게이트 정의.
 
 ## Agent SDK 규칙
@@ -32,6 +33,9 @@ Input Sources -> Event Normalizer -> Multi-Agent Layer -> Decision Agent -> TODO
 - 에이전트 간 직접 호출 금지.
 - 공유 상태는 오케스트레이터가 전달하는 Context Object만 사용.
 - 모든 에이전트 출력은 JSON 스키마를 준수.
+- Developer 계열 에이전트는 리포지토리 조회 도구(list_repo_files, read_repo_file, search_repo)를 사용할 수 있음.
+- 리포지토리 도구 입력 스키마는 optional 대신 nullable을 사용한다. (strict 스키마에서 required 누락 오류 방지)
+- 실제 코드 변경은 apply_repo_patch 도구를 통해서만 수행한다. 변경 전 dryRun 체크를 수행한다.
 
 ## 멀티 에이전트 워크플로 (PO/Dev/QA)
 오케스트레이터가 단일 진입점이며, PO → Developer → QA → Orchestrator 순서로 진행한다.
@@ -40,7 +44,10 @@ Input Sources -> Event Normalizer -> Multi-Agent Layer -> Decision Agent -> TODO
 ```
 Task/Signal -> Orchestrator
   -> PO (요구사항/수용기준)
+  -> Developer Research (코드/스펙 확인, PO 질문 응답)
+  -> PO (질문 반영해 정제)
   -> Developer (구현/리스크/검증)
+  -> Implementation (코드 변경 적용)
   -> QA (테스트/품질게이트)
   -> Orchestrator (결정/다음 단계)
 ```
@@ -93,7 +100,8 @@ Task/Signal -> Orchestrator
   acceptanceCriteria: string[],
   assumptions: string[],
   constraints: string[],
-  openQuestions: string[]
+  openQuestions: string[],
+  questionsForDev: string[]
 }
 
 ### Developer 출력
@@ -103,7 +111,27 @@ Task/Signal -> Orchestrator
   filesToTouch: string[],
   risks: string[],
   dependencies: string[],
-  validationPlan: string[]
+  validationPlan: string[],
+  answersForPo: string[]
+}
+
+### Developer Research 출력
+{
+  answersForPo: string[],
+  codeFindings: string[],
+  filesVisited: string[],
+  assumptions: string[],
+  openQuestions: string[]
+}
+
+### Implementation 출력
+{
+  summary: string,
+  filesChanged: string[],
+  patchesApplied: string[],
+  testsRun: string[],
+  risks: string[],
+  notes: string[]
 }
 
 ### QA 출력

@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "tsx watch src/run.ts",
     "run": "tsx src/run.ts",
+    "monitor": "tsx src/monitor/server.ts",
     "build": "tsc -p tsconfig.json",
     "lint": "biome check src",
     "format": "biome format --write src",
