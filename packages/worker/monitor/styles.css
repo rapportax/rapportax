@@ -180,38 +180,75 @@ h1 {
   font-size: 12px;
 }
 
-.agent-lane {
+.agent-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.agent-card {
+  background: var(--panel-2);
+  border-radius: 16px;
+  padding: 14px;
   display: grid;
   gap: 12px;
 }
 
-.agent-row {
-  display: grid;
-  grid-template-columns: 120px 1fr;
-  gap: 12px;
+.agent-card-header {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
 }
 
 .agent-tag {
-  padding: 8px 12px;
+  padding: 6px 10px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   background: rgba(255, 255, 255, 0.08);
 }
 
-.agent-bar {
-  background: #0f141c;
-  border-radius: 999px;
-  overflow: hidden;
+.agent-status {
+  font-size: 12px;
+  color: var(--muted);
 }
 
 .agent-progress {
-  height: 10px;
+  height: 6px;
   width: 0;
   background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  border-radius: 999px;
   transition: width 0.6s ease;
+}
+
+.tool-list {
+  display: grid;
+  gap: 10px;
+}
+
+.tool-item {
+  background: #0f141c;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 12px;
+}
+
+.tool-item strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.tool-meta {
+  color: var(--muted);
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+
+.tool-payload {
+  color: #c7d0dd;
+  font-family: "JetBrains Mono", "SFMono-Regular", monospace;
+  font-size: 11px;
+  white-space: pre-wrap;
 }
 
 .log {

@@ -7,7 +7,7 @@ const eventCountEl = document.getElementById("event-count");
 const logCountEl = document.getElementById("log-count");
 const statusValueEl = document.getElementById("status-value");
 
-const agentLaneEl = document.getElementById("agent-lane");
+const agentGridEl = document.getElementById("agent-grid");
 
 const stepOrder = [
   "po_draft",
@@ -20,19 +20,29 @@ const stepOrder = [
 ];
 
 const agentLabels = {
+  PO: "PO",
+  DeveloperResearch: "DEV R",
+  Developer: "DEV",
+  Implementation: "IMPL",
+  QA: "QA",
+  Orchestrator: "ORCH",
+};
+
+const stepToAgent = {
   po_draft: "PO",
   po_refine: "PO",
-  dev_research: "DEV R",
-  dev_plan: "DEV",
-  implementation: "IMPL",
+  dev_research: "DeveloperResearch",
+  dev_plan: "Developer",
+  implementation: "Implementation",
   qa: "QA",
-  synthesis: "ORCH",
+  synthesis: "Orchestrator",
 };
 
 const state = {
   events: [],
   runId: null,
   currentStep: null,
+  toolEvents: [],
 };
 
 const formatTime = (iso) => {
@@ -67,18 +77,55 @@ const renderLog = () => {
   logEl.scrollTop = logEl.scrollHeight;
 };
 
+const getAgentProgress = (agent) => {
+  if (!state.currentStep) {
+    return 0;
+  }
+  const currentIndex = stepOrder.indexOf(state.currentStep);
+  const agentSteps = Object.entries(stepToAgent)
+    .filter(([, value]) => value === agent)
+    .map(([step]) => stepOrder.indexOf(step));
+  const maxAgentIndex = Math.max(...agentSteps, -1);
+  if (maxAgentIndex < 0) {
+    return 0;
+  }
+  if (currentIndex >= maxAgentIndex) {
+    return 100;
+  }
+  return 40;
+};
+
 const renderAgents = () => {
-  agentLaneEl.innerHTML = stepOrder
-    .map((step) => {
-      const activeIndex = state.currentStep
-        ? stepOrder.indexOf(state.currentStep)
-        : -1;
-      const progress = activeIndex >= 0 ? (stepOrder.indexOf(step) <= activeIndex ? 100 : 20) : 0;
+  const agents = Object.keys(agentLabels);
+  agentGridEl.innerHTML = agents
+    .map((agent) => {
+      const toolEvents = state.toolEvents
+        .filter((entry) => entry.data?.agent === agent)
+        .slice(-4)
+        .reverse();
+      const stepName =
+        state.currentStep && stepToAgent[state.currentStep] === agent
+          ? state.currentStep
+          : null;
+      const progress = getAgentProgress(agent);
       return `
-      <div class="agent-row">
-        <div class="agent-tag">${agentLabels[step]}</div>
-        <div class="agent-bar">
-          <div class="agent-progress" style="width:${progress}%"></div>
+      <div class="agent-card">
+        <div class="agent-card-header">
+          <div class="agent-tag">${agentLabels[agent]}</div>
+          <div class="agent-status">${stepName ?? "대기 중"}</div>
+        </div>
+        <div class="agent-progress" style="width:${progress}%"></div>
+        <div class="tool-list">
+          ${toolEvents
+            .map(
+              (entry) => `
+              <div class="tool-item">
+                <strong>${entry.message}</strong>
+                <div class="tool-meta">${formatTime(entry.timestamp)}</div>
+                <div class="tool-payload">${JSON.stringify(entry.data ?? {}, null, 2)}</div>
+              </div>`
+            )
+            .join("")}
         </div>
       </div>`;
     })
@@ -117,6 +164,9 @@ const updateStep = (entry) => {
 
 const ingestEntry = (entry) => {
   state.events.push(entry);
+  if (entry.message && entry.message.startsWith("tool.")) {
+    state.toolEvents.push(entry);
+  }
   setRunId(entry);
   updateStep(entry);
   renderTimeline();

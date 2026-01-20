@@ -124,7 +124,42 @@ const readFileTruncated = async (
 \n... (truncated)`;
 };
 
-export const createRepoTools = (basePath: string) => {
+const truncateText = (value: string, max = 400): string => {
+  if (value.length <= max) {
+    return value;
+  }
+  return `${value.slice(0, max)}…`;
+};
+
+const truncateArray = <T>(items: T[], max = 10): T[] => {
+  if (items.length <= max) {
+    return items;
+  }
+  return items.slice(0, max);
+};
+
+export const createRepoTools = (basePath: string, agentName: string) => {
+  const toolLogPath = path.resolve(
+    basePath,
+    "..",
+    "..",
+    "packages",
+    "worker",
+    "monitor",
+    "agent-log.jsonl",
+  );
+  const logToolEvent = (name: string, payload: Record<string, unknown>) => {
+    const entry = {
+      timestamp: new Date().toISOString(),
+      message: `tool.${name}`,
+      data: {
+        agent: agentName,
+        ...payload,
+      },
+    };
+    fs.appendFile(toolLogPath, `${JSON.stringify(entry)}\n`).catch(() => undefined);
+  };
+
   const listRepoFilesTool = tool({
     name: "list_repo_files",
     description:
@@ -141,6 +176,12 @@ export const createRepoTools = (basePath: string) => {
       const files = await listFiles(basePath, pathValue, {
         maxFiles: maxFilesValue,
         extensions: input.extensions ?? undefined,
+      });
+      logToolEvent("list_repo_files", {
+        path: pathValue,
+        maxFiles: maxFilesValue,
+        count: files.length,
+        sample: truncateArray(files, 12),
       });
       return {
         basePath,
@@ -163,6 +204,13 @@ export const createRepoTools = (basePath: string) => {
       const maxBytesValue = input.maxBytes ?? 20000;
       const absolute = resolveSafePath(basePath, input.path);
       const contents = await readFileTruncated(absolute, maxBytesValue);
+      const preview = truncateText(contents, 400);
+      logToolEvent("read_repo_file", {
+        path: input.path,
+        maxBytes: maxBytesValue,
+        bytes: contents.length,
+        preview,
+      });
       return {
         path: input.path,
         contents,
@@ -212,6 +260,12 @@ export const createRepoTools = (basePath: string) => {
         });
       }
 
+      logToolEvent("search_repo", {
+        query: input.query,
+        maxResults: maxResultsValue,
+        count: results.length,
+        sample: truncateArray(results, 8),
+      });
       return {
         query: input.query,
         count: results.length,
@@ -247,6 +301,12 @@ export const createRepoTools = (basePath: string) => {
         const { stdout, stderr } = await execFileAsync("git", args, {
           cwd: basePath,
         });
+        logToolEvent("apply_repo_patch", {
+          dryRun,
+          ok: true,
+          stdout: truncateText(stdout?.trim() ?? "", 400),
+          stderr: truncateText(stderr?.trim() ?? "", 400),
+        });
         return {
           ok: true,
           dryRun,
@@ -259,6 +319,13 @@ export const createRepoTools = (basePath: string) => {
           stderr?: string;
           message?: string;
         };
+        logToolEvent("apply_repo_patch", {
+          dryRun,
+          ok: false,
+          error: err.message ?? "git apply failed",
+          stdout: truncateText(err.stdout?.trim() ?? "", 400),
+          stderr: truncateText(err.stderr?.trim() ?? "", 400),
+        });
         return {
           ok: false,
           dryRun,

@@ -194,11 +194,16 @@ export async function runMultiAgentWorkflow(
   const requestId = randomUUID();
   const maxTurns = options.maxTurns ?? 6;
   const repoRoot = options.repoRoot ?? process.cwd();
-  const repoTools = createRepoTools(repoRoot);
   const productOwnerAgent = createProductOwnerAgent();
-  const developerResearchAgent = createDeveloperResearchAgent(repoTools);
-  const developerAgent = createDeveloperAgent(repoTools);
-  const implementationAgent = createImplementationAgent(repoTools);
+  const developerResearchAgent = createDeveloperResearchAgent(
+    createRepoTools(repoRoot, "DeveloperResearch"),
+  );
+  const developerAgent = createDeveloperAgent(
+    createRepoTools(repoRoot, "Developer"),
+  );
+  const implementationAgent = createImplementationAgent(
+    createRepoTools(repoRoot, "Implementation"),
+  );
   const qaAgent = createQaAgent();
   const orchestratorAgent = createOrchestratorAgent();
   const enableImplementation = options.enableImplementation ?? false;
