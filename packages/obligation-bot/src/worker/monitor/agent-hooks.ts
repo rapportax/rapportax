@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { EventEmitter2 } from "eventemitter2";
 import type { Agent, RunContext, Runner, Tool } from "@openai/agents";
+import { attachSlackOpsPublisher } from "../../slack/monitor";
 
 export type AgentHookEvent =
   | "agent_start"
@@ -29,6 +30,15 @@ export const agentEventEmitter = new EventEmitter2({
   maxListeners: 100,
 });
 
+const AGENT_HOOK_EVENTS: AgentHookEvent[] = [
+  "agent_start",
+  "agent_end",
+  "agent_handoff",
+  "agent_tool_start",
+  "agent_tool_call",
+  "agent_tool_end",
+];
+
 export const DEFAULT_AGENT_LOG_PATH =
   process.env.MONITOR_LOG_PATH ??
   path.resolve(__dirname, "..", "..", "monitor", "agent-log.jsonl");
@@ -45,6 +55,99 @@ const truncate = (value: string, max = 800): string => {
     return value;
   }
   return `${value.slice(0, max)}…`;
+};
+
+const EVENT_EMOJI: Record<AgentHookEvent, string> = {
+  agent_start: "🟢",
+  agent_end: "✅",
+  agent_handoff: "➡️",
+  agent_tool_start: "🧰",
+  agent_tool_call: "📣",
+  agent_tool_end: "🧾",
+};
+
+const TOOL_AGENT_MAP: Record<string, string> = {
+  ask_po: "PO",
+  ask_dev: "Developer",
+  ask_dev_research: "DeveloperResearch",
+  ask_implementation: "Implementation",
+  ask_qa: "QA",
+};
+
+const formatTime = (timestamp: string): string => {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) {
+    return "--:--:--";
+  }
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+};
+
+const shortenId = (value: string, head = 6, tail = 4): string => {
+  if (value.length <= head + tail + 1) {
+    return value;
+  }
+  return `${value.slice(0, head)}…${value.slice(-tail)}`;
+};
+
+const formatJsonPreview = (value: string, max = 600): string => {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return "";
+  }
+  let text = trimmed;
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(trimmed) as unknown;
+      text = JSON.stringify(parsed, null, 2);
+    } catch {
+      text = trimmed;
+    }
+  }
+  if (text.length > max) {
+    text = `${text.slice(0, max)}…`;
+  }
+  return text;
+};
+
+const formatSlackEventLine = (event: AgentHookEvent, payload: AgentHookPayload): string => {
+  const emoji = EVENT_EMOJI[event] ?? "🧾";
+  const parts: string[] = [];
+  const time = formatTime(payload.timestamp);
+  const toolKey = payload.toolName ?? payload.tool ?? "";
+  const targetAgent = TOOL_AGENT_MAP[toolKey];
+  if (payload.agent) {
+    parts.push(`*${payload.agent}*`);
+  }
+  if (payload.nextAgent) {
+    parts.push(`→ *${payload.nextAgent}*`);
+  }
+  if (targetAgent) {
+    parts.push(`→ *${targetAgent}*`);
+  }
+  if (payload.tool) {
+    parts.push(`tool=\`${payload.tool}\``);
+  }
+  if (payload.toolCallId) {
+    parts.push(`call=\`${shortenId(payload.toolCallId)}\``);
+  }
+  if (payload.toolName) {
+    parts.push(`name=\`${payload.toolName}\``);
+  }
+  if (payload.turnInputCount !== undefined) {
+    parts.push(`inputs=${payload.turnInputCount}`);
+  }
+  if (payload.output) {
+    parts.push(`output=${truncate(payload.output, 120)}`);
+  }
+  let resultBlock = "";
+  if (payload.result) {
+    const preview = formatJsonPreview(payload.result, 700);
+    if (preview) {
+      resultBlock = `\n\`\`\`json\n${preview}\n\`\`\``;
+    }
+  }
+  return `${emoji} *${event}* \`[${time}]\` ${parts.join(" ")}`.trim() + resultBlock;
 };
 
 const buildPayload = (requestId: string | undefined, data: Omit<AgentHookPayload, "requestId" | "timestamp">) => ({
@@ -148,17 +251,13 @@ export const attachAgentHookLogger = (
 ) => {
   const logPath = options.logPath ?? DEFAULT_AGENT_LOG_PATH;
   ensureDir(logPath);
+  const detachSlack = attachSlackOpsPublisher(eventEmitter, {
+    events: AGENT_HOOK_EVENTS,
+    formatLine: formatSlackEventLine,
+  });
   const handlers = new Map<AgentHookEvent, (payload: AgentHookPayload) => void>();
-  const events: AgentHookEvent[] = [
-    "agent_start",
-    "agent_end",
-    "agent_handoff",
-    "agent_tool_start",
-    "agent_tool_call",
-    "agent_tool_end",
-  ];
 
-  events.forEach((event) => {
+  AGENT_HOOK_EVENTS.forEach((event) => {
     const handler = (payload: AgentHookPayload) => {
       const entry = {
         timestamp: new Date().toISOString(),
@@ -175,5 +274,21 @@ export const attachAgentHookLogger = (
     handlers.forEach((handler, event) => {
       eventEmitter.off(event, handler);
     });
+    detachSlack();
   };
 };
+
+export const attachAgentHookSlackPublisher = (
+  eventEmitter: EventEmitter2 = agentEventEmitter,
+  options: {
+    channel?: string;
+    token?: string;
+    flushIntervalMs?: number;
+    maxLines?: number;
+  } = {},
+) =>
+  attachSlackOpsPublisher(eventEmitter, {
+    ...options,
+    events: AGENT_HOOK_EVENTS,
+    formatLine: formatSlackEventLine,
+  });

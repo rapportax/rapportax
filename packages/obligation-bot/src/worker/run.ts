@@ -1,6 +1,9 @@
 import path from "path";
 import { runMultiAgentWorkflow } from "./index";
 import { createJsonlLogger } from "./monitor/logger";
+import { loadEnv } from "../slack/env";
+
+loadEnv();
 
 const LOCAL_TASKS = [
   {
