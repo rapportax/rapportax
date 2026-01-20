@@ -3,35 +3,12 @@ import { publishAppHome } from "./publish";
 import { parseSlackActionId } from "./actions";
 import { createSlackSocketAppContext } from "../di";
 import { startApiServer } from "../api/server";
-import { WorkflowVisualizationService, workflowVizEvents } from "../workflow-viz";
 import { normalizeSlackEvent } from "../normalize/slack";
 
 export async function startSlackSocketApp(): Promise<void> {
   const { service, signingSecret, botToken, appToken } = createSlackSocketAppContext();
 
   void startApiServer(service);
-
-  const workflowViz = new WorkflowVisualizationService({ botToken });
-
-  workflowVizEvents.on("session:start", (session) => {
-    workflowViz.startSession(session).catch((err) => {
-      console.error("[workflow-viz] Error starting session:", err);
-    });
-  });
-
-  workflowVizEvents.on("session:end", ({ sessionId }) => {
-    workflowViz.endSession(sessionId).catch((err) => {
-      console.error("[workflow-viz] Error ending session:", err);
-    });
-  });
-
-  workflowVizEvents.on("workflow:event", (event) => {
-    workflowViz.handleEvent(event).catch((err) => {
-      console.error("[workflow-viz] Error handling event:", err);
-    });
-  });
-
-  console.log("[workflow-viz] Service initialized and EventEmitter connected");
 
   const app = new App({
     token: botToken,
